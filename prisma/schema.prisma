@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum InquiryStatus {
+  OPEN
+  AI_DRAFTED
+  REVIEW_NEEDED
+  COMPLETED
+}
+
+enum InquiryCategory {
+  GENERAL
+  TROUBLESHOOTING
+  BILLING
+  FEATURE_REQUEST
+  OTHER
+}
+
+enum InquiryPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Inquiry {
+  id           String           @id @default(cuid())
+  title        String
+  customerName String
+  inquiryBody  String
+
+  category     InquiryCategory?
+  priority     InquiryPriority?
+  summary      String?
+  draftReply   String?
+  aiReason     String?
+
+  status       InquiryStatus    @default(OPEN)
+
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
