@@ -1,39 +1,17 @@
 import Link from "next/link";
 import type { Inquiry } from "@/types/inquiry";
+import {
+  getCategoryBadgeClass,
+  getCategoryLabel,
+  getPriorityBadgeClass,
+  getPriorityLabel,
+  getStatusBadgeClass,
+  getStatusLabel,
+} from "@/lib/inquiryLabels";
 
 type Props = {
   inquiries: Inquiry[];
 };
-
-function statusLabel(status: Inquiry["status"]) {
-  switch (status) {
-    case "OPEN":
-      return "未対応";
-    case "AI_DRAFTED":
-      return "AI下書き済み";
-    case "REVIEW_NEEDED":
-      return "確認中";
-    case "COMPLETED":
-      return "完了";
-    default:
-      return status;
-  }
-}
-
-function priorityBadgeClass(priority: Inquiry["priority"]) {
-  switch (priority) {
-    case "LOW":
-      return "bg-slate-100 text-slate-700";
-    case "MEDIUM":
-      return "bg-blue-50 text-blue-700";
-    case "HIGH":
-      return "bg-amber-50 text-amber-700";
-    case "URGENT":
-      return "bg-red-50 text-red-700";
-    default:
-      return "bg-slate-100 text-slate-500";
-  }
-}
 
 export default function InquiryList({ inquiries }: Props) {
   if (inquiries.length === 0) {
@@ -50,41 +28,104 @@ export default function InquiryList({ inquiries }: Props) {
         <Link
           key={inquiry.id}
           href={`/inquiries/${inquiry.id}`}
-          className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow"
+          className="block overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
         >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">{inquiry.title}</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                顧客名：{inquiry.customerName}
-              </p>
-            </div>
+          <div className="border-b border-slate-100 bg-gradient-to-r from-white via-slate-50 to-blue-50/60 px-5 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                      inquiry.status
+                    )}`}
+                  >
+                    {getStatusLabel(inquiry.status)}
+                  </span>
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getPriorityBadgeClass(
+                      inquiry.priority
+                    )}`}
+                  >
+                    優先度: {getPriorityLabel(inquiry.priority)}
+                  </span>
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getCategoryBadgeClass(
+                      inquiry.category
+                    )}`}
+                  >
+                    {getCategoryLabel(inquiry.category)}
+                  </span>
+                </div>
 
-            <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-              {statusLabel(inquiry.status)}
+                <h2 className="mt-3 text-lg font-bold text-slate-900">
+                  {inquiry.title}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  顧客名: {inquiry.customerName}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Updated
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">
+                  {new Date(inquiry.updatedAt).toLocaleString("ja-JP")}
+                </p>
+              </div>
             </div>
           </div>
 
-          <p className="mt-4 line-clamp-2 text-sm text-slate-600">
-            {inquiry.inquiryBody}
-          </p>
+          <div className="px-5 py-5">
+            <div className="grid gap-4 lg:grid-cols-[1.7fr_0.9fr]">
+              <div>
+                <p className="line-clamp-3 text-sm leading-7 text-slate-600">
+                  {inquiry.inquiryBody}
+                </p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
-              カテゴリ: {inquiry.category ?? "-"}
-            </span>
+                {(inquiry.tags ?? []).length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {inquiry.tags?.slice(0, 4).map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
 
-            <span
-              className={`rounded-full px-3 py-1 font-semibold ${priorityBadgeClass(
-                inquiry.priority
-              )}`}
-            >
-              優先度: {inquiry.priority ?? "-"}
-            </span>
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Assignee
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {inquiry.assigneeName ?? "未割り当て"}
+                  </p>
+                </div>
 
-            <span className="text-slate-500">
-              作成日: {new Date(inquiry.createdAt).toLocaleString("ja-JP")}
-            </span>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Comments
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {inquiry.commentCount ?? 0} 件
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Inquiry ID
+                  </p>
+                  <p className="mt-1 truncate font-mono text-xs text-slate-700">
+                    {inquiry.id}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </Link>
       ))}

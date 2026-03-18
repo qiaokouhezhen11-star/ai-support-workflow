@@ -11,11 +11,15 @@ body {
   padding: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Hiragino Sans", "Noto Sans JP", Arial, sans-serif;
 }
 
 * {
   box-sizing: border-box;
+}
+
+body {
+  line-height: 1.5;
 }
 
 a {
@@ -25,4 +29,11 @@ a {
 
 button {
   cursor: pointer;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
 }

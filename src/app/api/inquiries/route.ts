@@ -3,9 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
 const createInquirySchema = z.object({
-  title: z.string().min(1, "件名は必須です。"),
-  customerName: z.string().min(1, "顧客名は必須です。"),
-  inquiryBody: z.string().min(1, "問い合わせ本文は必須です。"),
+  title: z.string().trim().min(1, "件名は必須です。"),
+  customerName: z.string().trim().min(1, "顧客名は必須です。"),
+  inquiryBody: z.string().trim().min(1, "問い合わせ本文は必須です。"),
 });
 
 export async function GET() {
@@ -23,12 +23,25 @@ export async function POST(req: Request) {
     const body = await req.json();
     const parsed = createInquirySchema.parse(body);
 
-    const inquiry = await prisma.inquiry.create({
-      data: {
-        title: parsed.title,
-        customerName: parsed.customerName,
-        inquiryBody: parsed.inquiryBody,
-      },
+    const inquiry = await prisma.$transaction(async (tx) => {
+      const created = await tx.inquiry.create({
+        data: {
+          title: parsed.title,
+          customerName: parsed.customerName,
+          inquiryBody: parsed.inquiryBody,
+        },
+      });
+
+      await tx.inquiryAuditLog.create({
+        data: {
+          inquiryId: created.id,
+          action: "CREATED",
+          actorName: "システム",
+          comment: "問い合わせが新規登録されました。",
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json(inquiry, { status: 201 });

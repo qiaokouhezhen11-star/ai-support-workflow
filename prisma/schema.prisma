@@ -28,11 +28,22 @@ enum InquiryPriority {
   URGENT
 }
 
+enum InquiryAuditAction {
+  CREATED
+  AI_ANALYZED
+  STATUS_UPDATED
+  ASSIGNEE_UPDATED
+  AI_RESULT_SAVED
+  COMMENT_ADDED
+  FIELD_UPDATED
+}
+
 model Inquiry {
   id           String           @id @default(cuid())
   title        String
   customerName String
   inquiryBody  String
+  assigneeName String?
 
   category     InquiryCategory?
   priority     InquiryPriority?
@@ -42,6 +53,50 @@ model Inquiry {
 
   status       InquiryStatus    @default(OPEN)
 
+  comments     InquiryComment[]
+  auditLogs    InquiryAuditLog[]
+  tags         InquiryTag[]
+
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+}
+
+model InquiryTag {
+  id         String   @id @default(cuid())
+  inquiryId  String
+  name       String
+  createdAt  DateTime @default(now())
+
+  inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
+}
+
+model InquiryComment {
+  id         String   @id @default(cuid())
+  inquiryId  String
+  authorName String   @default("担当者")
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
+}
+
+model InquiryAuditLog {
+  id          String             @id @default(cuid())
+  inquiryId   String
+  action      InquiryAuditAction
+  actorName   String             @default("システム")
+  fieldName   String?
+  beforeValue String?
+  afterValue  String?
+  comment     String?
+  createdAt   DateTime           @default(now())
+
+  inquiry     Inquiry            @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
 }

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
 const updateInquirySchema = z.object({
-  title: z.string().optional(),
-  customerName: z.string().optional(),
-  inquiryBody: z.string().optional(),
+  title: z.string().trim().min(1).optional(),
+  customerName: z.string().trim().min(1).optional(),
+  inquiryBody: z.string().trim().min(1).optional(),
+  assigneeName: z.string().trim().max(50).nullable().optional(),
   category: z
     .enum(["GENERAL", "TROUBLESHOOTING", "BILLING", "FEATURE_REQUEST", "OTHER"])
     .nullable()
@@ -14,8 +15,31 @@ const updateInquirySchema = z.object({
   summary: z.string().nullable().optional(),
   draftReply: z.string().nullable().optional(),
   aiReason: z.string().nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(20)).max(8).optional(),
   status: z.enum(["OPEN", "AI_DRAFTED", "REVIEW_NEEDED", "COMPLETED"]).optional(),
+  actorName: z.string().trim().max(50).optional(),
 });
+
+const auditableFields = [
+  "title",
+  "customerName",
+  "inquiryBody",
+  "assigneeName",
+  "category",
+  "priority",
+  "summary",
+  "draftReply",
+  "aiReason",
+  "status",
+] as const;
+
+function stringifyValue(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  return String(value);
+}
 
 type Props = {
   params: Promise<{
@@ -54,10 +78,116 @@ export async function PATCH(req: Request, { params }: Props) {
     const { id } = await params;
     const body = await req.json();
     const parsed = updateInquirySchema.parse(body);
+    const { actorName, tags, ...data } = parsed;
 
-    const inquiry = await prisma.inquiry.update({
+    const current = await prisma.inquiry.findUnique({
       where: { id },
-      data: parsed,
+      include: {
+        tags: {
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+    });
+
+    if (!current) {
+      return NextResponse.json(
+        { error: "問い合わせが見つかりません。" },
+        { status: 404 }
+      );
+    }
+
+    const logs = auditableFields
+      .filter((field) => field in data)
+      .map((field) => {
+        const beforeValue = stringifyValue(current[field]);
+        const afterValue = stringifyValue(data[field]);
+
+        if (beforeValue === afterValue) {
+          return null;
+        }
+
+        const isStatus = field === "status";
+        const isAssignee = field === "assigneeName";
+
+        return {
+          inquiryId: id,
+          action: isStatus
+            ? "STATUS_UPDATED"
+            : isAssignee
+              ? "ASSIGNEE_UPDATED"
+              : "FIELD_UPDATED",
+          actorName: actorName || current.assigneeName || "担当者",
+          fieldName: field,
+          beforeValue,
+          afterValue,
+          comment: isStatus
+            ? "ステータスが更新されました。"
+            : isAssignee
+              ? "担当者が更新されました。"
+              : `${field} が更新されました。`,
+        };
+      })
+      .filter((item) => item !== null);
+
+    const nextTags = tags
+      ? Array.from(
+          new Set(
+            tags
+              .map((item) => item.trim())
+              .filter(Boolean)
+          )
+        )
+      : undefined;
+
+    const currentTags = current.tags.map((item) => item.name);
+
+    if (nextTags) {
+      const beforeValue = stringifyValue(currentTags.join(", "));
+      const afterValue = stringifyValue(nextTags.join(", "));
+
+      if (beforeValue !== afterValue) {
+        logs.push({
+          inquiryId: id,
+          action: "FIELD_UPDATED",
+          actorName: actorName || current.assigneeName || "担当者",
+          fieldName: "tags",
+          beforeValue,
+          afterValue,
+          comment: "タグが更新されました。",
+        });
+      }
+    }
+
+    const inquiry = await prisma.$transaction(async (tx) => {
+      const updated = await tx.inquiry.update({
+        where: { id },
+        data,
+      });
+
+      if (nextTags) {
+        await tx.inquiryTag.deleteMany({
+          where: { inquiryId: id },
+        });
+
+        if (nextTags.length > 0) {
+          await tx.inquiryTag.createMany({
+            data: nextTags.map((name) => ({
+              inquiryId: id,
+              name,
+            })),
+          });
+        }
+      }
+
+      if (logs.length > 0) {
+        await tx.inquiryAuditLog.createMany({
+          data: logs,
+        });
+      }
+
+      return updated;
     });
 
     return NextResponse.json(inquiry);

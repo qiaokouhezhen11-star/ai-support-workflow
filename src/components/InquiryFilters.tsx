@@ -3,7 +3,11 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
-export default function InquiryFilters() {
+type Props = {
+  assigneeOptions: string[];
+};
+
+export default function InquiryFilters({ assigneeOptions }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -12,6 +16,7 @@ export default function InquiryFilters() {
   const keyword = searchParams.get("keyword") ?? "";
   const status = searchParams.get("status") ?? "";
   const priority = searchParams.get("priority") ?? "";
+  const assignee = searchParams.get("assignee") ?? "";
 
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -30,7 +35,7 @@ export default function InquiryFilters() {
 
   return (
     <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700">
             キーワード検索
@@ -74,6 +79,25 @@ export default function InquiryFilters() {
             <option value="MEDIUM">MEDIUM</option>
             <option value="HIGH">HIGH</option>
             <option value="URGENT">URGENT</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-slate-700">
+            担当者
+          </label>
+          <select
+            value={assignee}
+            onChange={(e) => updateParam("assignee", e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-500"
+          >
+            <option value="">すべて</option>
+            <option value="__unassigned__">未割り当て</option>
+            {assigneeOptions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
         </div>
       </div>

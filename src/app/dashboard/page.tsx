@@ -1,0 +1,283 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { getStatusLabel } from "@/lib/inquiryLabels";
+import { getAuditActionLabel } from "@/lib/auditLogs";
+
+function percent(value: number, total: number) {
+  if (total === 0) {
+    return 0;
+  }
+
+  return Math.round((value / total) * 100);
+}
+
+function formatDate(date: Date) {
+  return new Date(date).toLocaleString("ja-JP");
+}
+
+export default async function DashboardPage() {
+  const [
+    total,
+    openCount,
+    aiDraftedCount,
+    reviewNeededCount,
+    completedCount,
+    urgentCount,
+    assignedCount,
+    commentCount,
+    inquiries,
+    recentLogs,
+  ] = await Promise.all([
+    prisma.inquiry.count(),
+    prisma.inquiry.count({ where: { status: "OPEN" } }),
+    prisma.inquiry.count({ where: { status: "AI_DRAFTED" } }),
+    prisma.inquiry.count({ where: { status: "REVIEW_NEEDED" } }),
+    prisma.inquiry.count({ where: { status: "COMPLETED" } }),
+    prisma.inquiry.count({ where: { priority: "URGENT" } }),
+    prisma.inquiry.count({ where: { assigneeName: { not: null } } }),
+    prisma.inquiryComment.count(),
+    prisma.inquiry.findMany({
+      include: {
+        _count: {
+          select: {
+            comments: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    }),
+    prisma.inquiryAuditLog.findMany({
+      take: 5,
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        inquiry: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const assigneeLoad = Object.entries(
+    inquiries.reduce<Record<string, number>>((acc, inquiry) => {
+      const key = inquiry.assigneeName ?? "未割り当て";
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  const priorityDistribution = [
+    {
+      label: "緊急",
+      value: inquiries.filter((item) => item.priority === "URGENT").length,
+      barClass: "bg-red-500",
+    },
+    {
+      label: "高",
+      value: inquiries.filter((item) => item.priority === "HIGH").length,
+      barClass: "bg-orange-500",
+    },
+    {
+      label: "中",
+      value: inquiries.filter((item) => item.priority === "MEDIUM").length,
+      barClass: "bg-blue-500",
+    },
+    {
+      label: "低",
+      value: inquiries.filter((item) => item.priority === "LOW").length,
+      barClass: "bg-slate-500",
+    },
+  ];
+
+  const statusItems = [
+    { label: "未対応", value: openCount },
+    { label: "AI下書き済み", value: aiDraftedCount },
+    { label: "確認中", value: reviewNeededCount },
+    { label: "完了", value: completedCount },
+  ];
+
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.12),_transparent_26%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-6 py-10">
+      <div className="mx-auto max-w-6xl">
+        <section className="rounded-3xl border border-slate-200 bg-white/85 p-6 shadow-sm backdrop-blur">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-blue-600">ダッシュボード</p>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+                問い合わせ対応の全体状況
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+                いま何件あるか、どの担当者に偏っているか、どの更新が最近起きたかをまとめて確認できます。
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/inquiries"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              >
+                問い合わせ一覧
+              </Link>
+              <Link
+                href="/inquiries/new"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+              >
+                新規登録
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "総問い合わせ数", value: total, note: "現在管理中の件数", className: "from-slate-50 to-white" },
+            { label: "担当者設定済み", value: assignedCount, note: "割り当て済みの件数", className: "from-violet-50 to-white" },
+            { label: "緊急対応", value: urgentCount, note: "優先度が緊急", className: "from-red-50 to-white" },
+            { label: "社内メモ", value: commentCount, note: "蓄積されたメモ件数", className: "from-amber-50 to-white" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className={`rounded-3xl border border-slate-200 bg-gradient-to-br p-5 shadow-sm ${item.className}`}
+            >
+              <p className="text-sm font-semibold text-slate-500">{item.label}</p>
+              <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+                {item.value}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">{item.note}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">ステータスの内訳</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  どの状態に案件がたまっているかを確認できます。
+                </p>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                Updated Summary
+              </span>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {statusItems.map((item) => (
+                <div key={item.label}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-semibold text-slate-700">{item.label}</span>
+                    <span className="text-slate-500">
+                      {item.value} 件 / {percent(item.value, total)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-3 rounded-full bg-slate-100">
+                    <div
+                      className="h-3 rounded-full bg-slate-900"
+                      style={{ width: `${percent(item.value, total)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">優先度の内訳</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              緊急対応が増えていないかをざっくり把握できます。
+            </p>
+
+            <div className="mt-6 space-y-4">
+              {priorityDistribution.map((item) => (
+                <div key={item.label}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-semibold text-slate-700">{item.label}</span>
+                    <span className="text-slate-500">{item.value} 件</span>
+                  </div>
+                  <div className="mt-2 h-3 rounded-full bg-slate-100">
+                    <div
+                      className={`h-3 rounded-full ${item.barClass}`}
+                      style={{ width: `${percent(item.value, total)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">担当者ごとの件数</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              誰に問い合わせが偏っているかを確認できます。
+            </p>
+
+            <div className="mt-6 space-y-4">
+              {assigneeLoad.map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-800">{label}</p>
+                    <p className="text-sm text-slate-500">{value} 件</p>
+                  </div>
+                  <div className="mt-3 h-2.5 rounded-full bg-white">
+                    <div
+                      className="h-2.5 rounded-full bg-blue-600"
+                      style={{ width: `${percent(value, total)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">最近の更新</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              直近の監査ログをダッシュボードから確認できます。
+            </p>
+
+            <div className="mt-6 space-y-4">
+              {recentLogs.map((log) => (
+                <Link
+                  key={log.id}
+                  href={`/inquiries/${log.inquiry.id}`}
+                  className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {log.actorName}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {getAuditActionLabel(log.action)}
+                    </span>
+                    {log.fieldName ? (
+                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        {log.fieldName}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-3 font-semibold text-slate-900">{log.inquiry.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    {log.comment ?? `${getStatusLabel(log.inquiry.status)} の問い合わせで更新がありました。`}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">{formatDate(log.createdAt)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}

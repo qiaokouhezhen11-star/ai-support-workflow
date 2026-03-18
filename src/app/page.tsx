@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-10">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.12),_transparent_26%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-6 py-10">
       <div className="mx-auto max-w-5xl">
         <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <p className="text-sm font-semibold text-blue-600">
@@ -18,6 +18,12 @@ export default function HomePage() {
 
           <div className="mt-8 flex flex-wrap gap-4">
             <Link
+              href="/dashboard"
+              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
+            >
+              ダッシュボードを見る
+            </Link>
+            <Link
               href="/inquiries"
               className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
             >
@@ -32,7 +38,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold text-slate-900">問い合わせ管理</h2>
             <p className="mt-2 text-sm text-slate-600">
@@ -51,6 +57,13 @@ export default function HomePage() {
             <h2 className="text-lg font-bold text-slate-900">人間確認</h2>
             <p className="mt-2 text-sm text-slate-600">
               AIの出力をそのまま送らず、編集して保存できる運用設計
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-900">ダッシュボード</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              件数、担当者負荷、最近の更新をまとめて可視化
             </p>
           </div>
         </div>

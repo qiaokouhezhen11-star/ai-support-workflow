@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import InquiryDetail from "@/components/InquiryDetail";
+import {
+  buildHistoryKnowledgeCandidates,
+  buildKnowledgeSuggestions,
+  buildSimilarInquiryCandidates,
+} from "@/lib/inquiryInsights";
 import { prisma } from "@/lib/prisma";
 import type { Inquiry } from "@/types/inquiry";
 
@@ -15,16 +20,67 @@ export default async function InquiryDetailPage({ params }: Props) {
 
   const inquiry = await prisma.inquiry.findUnique({
     where: { id },
+    include: {
+      tags: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      auditLogs: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      _count: {
+        select: {
+          comments: true,
+        },
+      },
+    },
   });
 
   if (!inquiry) {
     notFound();
   }
 
+  const relatedInquiries = await prisma.inquiry.findMany({
+    where: {
+      id: {
+        not: id,
+      },
+    },
+    include: {
+      tags: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+    },
+    take: 12,
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
+
+  const { _count, auditLogs, tags, ...item } = inquiry;
+  const similarInquiries = buildSimilarInquiryCandidates(inquiry, relatedInquiries);
+  const knowledgeSuggestions = [
+    ...buildKnowledgeSuggestions(inquiry),
+    ...buildHistoryKnowledgeCandidates(similarInquiries),
+  ].slice(0, 5);
+
   const serialized: Inquiry = {
-    ...inquiry,
-    createdAt: inquiry.createdAt.toISOString(),
-    updatedAt: inquiry.updatedAt.toISOString(),
+    ...item,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+    auditLogs: auditLogs.map((log) => ({
+      ...log,
+      createdAt: log.createdAt.toISOString(),
+    })),
+    commentCount: _count.comments,
+    tags: tags.map((tag) => tag.name),
+    similarInquiries,
+    knowledgeSuggestions,
   };
 
   return (

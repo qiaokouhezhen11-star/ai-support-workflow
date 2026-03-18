@@ -111,18 +111,42 @@ ${inquiry.inquiryBody}
 
     const parsedOutput = aiResultSchema.parse(response.output_parsed);
 
-    const updated = await prisma.inquiry.update({
-      where: {
-        id: inquiry.id,
-      },
-      data: {
-        category: parsedOutput.category,
-        priority: parsedOutput.priority,
-        summary: parsedOutput.summary,
-        draftReply: parsedOutput.draftReply,
-        aiReason: parsedOutput.aiReason,
-        status: "AI_DRAFTED",
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const saved = await tx.inquiry.update({
+        where: {
+          id: inquiry.id,
+        },
+        data: {
+          category: parsedOutput.category,
+          priority: parsedOutput.priority,
+          summary: parsedOutput.summary,
+          draftReply: parsedOutput.draftReply,
+          aiReason: parsedOutput.aiReason,
+          status: "AI_DRAFTED",
+        },
+      });
+
+      await tx.inquiryAuditLog.createMany({
+        data: [
+          {
+            inquiryId: inquiry.id,
+            action: "AI_ANALYZED",
+            actorName: "AI",
+            comment: "AI解析を実行して回答候補を生成しました。",
+          },
+          {
+            inquiryId: inquiry.id,
+            action: "STATUS_UPDATED",
+            actorName: "AI",
+            fieldName: "status",
+            beforeValue: inquiry.status,
+            afterValue: "AI_DRAFTED",
+            comment: "AI解析後の状態に更新しました。",
+          },
+        ],
+      });
+
+      return saved;
     });
 
     return NextResponse.json(updated);
