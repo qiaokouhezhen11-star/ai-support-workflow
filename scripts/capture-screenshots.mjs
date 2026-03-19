@@ -16,12 +16,12 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
 
 try {
-  await capture(page, "/", "home.png");
-  await capture(page, "/inquiries", "inquiries-list.png");
-  await capture(page, "/inquiries/sample-billing-001", "inquiry-detail.png");
-  await capture(page, "/inquiries/sample-trouble-001", "inquiry-insights.png");
-  await capture(page, "/inquiries/sample-billing-001", "audit-log.png");
-  await capture(page, "/dashboard", "dashboard.png");
+  await capture(page, "/", "home-readme.png");
+  await capture(page, "/inquiries", "inquiries-list-readme.png");
+  await capture(page, "/inquiries/sample-billing-001", "inquiry-detail-readme.png");
+  await capture(page, "/inquiries/sample-trouble-001", "inquiry-insights-readme.png");
+  await capture(page, "/inquiries/sample-billing-001", "audit-log-readme.png");
+  await capture(page, "/dashboard", "dashboard-readme.png");
 } finally {
   await browser.close();
 }

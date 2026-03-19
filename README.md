@@ -166,39 +166,39 @@ READMEに貼ると分かりやすい画面:
 
 ### 1. ホーム画面
 
-`docs/screenshots/home.png`
+`docs/screenshots/home-readme.png`
 
-![ホーム画面](docs/screenshots/home.png)
+![ホーム画面](docs/screenshots/home-readme.png)
 
 ### 2. 問い合わせ一覧画面
 
-`docs/screenshots/inquiries-list.png`
+`docs/screenshots/inquiries-list-readme.png`
 
-![問い合わせ一覧画面](docs/screenshots/inquiries-list.png)
+![問い合わせ一覧画面](docs/screenshots/inquiries-list-readme.png)
 
 ### 3. 詳細画面
 
-`docs/screenshots/inquiry-detail.png`
+`docs/screenshots/inquiry-detail-readme.png`
 
-![詳細画面](docs/screenshots/inquiry-detail.png)
+![詳細画面](docs/screenshots/inquiry-detail-readme.png)
 
 ### 4. 類似問い合わせ / ナレッジ候補表示
 
-`docs/screenshots/inquiry-insights.png`
+`docs/screenshots/inquiry-insights-readme.png`
 
-![類似問い合わせとナレッジ候補](docs/screenshots/inquiry-insights.png)
+![類似問い合わせとナレッジ候補](docs/screenshots/inquiry-insights-readme.png)
 
 ### 5. 監査ログ表示画面
 
-`docs/screenshots/audit-log.png`
+`docs/screenshots/audit-log-readme.png`
 
-![監査ログ表示画面](docs/screenshots/audit-log.png)
+![監査ログ表示画面](docs/screenshots/audit-log-readme.png)
 
 ### 6. ダッシュボード
 
-`docs/screenshots/dashboard.png`
+`docs/screenshots/dashboard-readme.png`
 
-![ダッシュボード](docs/screenshots/dashboard.png)
+![ダッシュボード](docs/screenshots/dashboard-readme.png)
 
 スクリーンショット更新コマンド:
 
@@ -209,11 +209,11 @@ npm run capture:screenshots
 差し替え用のMarkdown例:
 
 ```md
-![問い合わせ一覧画面](docs/screenshots/inquiries-list.png)
-![詳細画面](docs/screenshots/inquiry-detail.png)
-![類似問い合わせとナレッジ候補](docs/screenshots/inquiry-insights.png)
-![監査ログ表示画面](docs/screenshots/audit-log.png)
-![ダッシュボード](docs/screenshots/dashboard.png)
+![問い合わせ一覧画面](docs/screenshots/inquiries-list-readme.png)
+![詳細画面](docs/screenshots/inquiry-detail-readme.png)
+![類似問い合わせとナレッジ候補](docs/screenshots/inquiry-insights-readme.png)
+![監査ログ表示画面](docs/screenshots/audit-log-readme.png)
+![ダッシュボード](docs/screenshots/dashboard-readme.png)
 ```
 
 補足:
