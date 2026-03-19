@@ -17,6 +17,25 @@ function formatDate(date: Date) {
   return new Date(date).toLocaleString("ja-JP");
 }
 
+function formatDuration(hours: number) {
+  if (hours <= 0) {
+    return "0時間";
+  }
+
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+
+  if (wholeHours === 0) {
+    return `${minutes}分`;
+  }
+
+  if (minutes === 0) {
+    return `${wholeHours}時間`;
+  }
+
+  return `${wholeHours}時間 ${minutes}分`;
+}
+
 function dayLabel(date: Date) {
   return new Intl.DateTimeFormat("ja-JP", {
     month: "numeric",
@@ -51,6 +70,18 @@ export default async function DashboardPage() {
         _count: {
           select: {
             comments: true,
+          },
+        },
+        auditLogs: {
+          where: {
+            action: "STATUS_UPDATED",
+            afterValue: "COMPLETED",
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+          select: {
+            createdAt: true,
           },
         },
       },
@@ -163,6 +194,34 @@ export default async function DashboardPage() {
   const completionRate = percent(completedCount, total);
   const assignmentRate = percent(assignedCount, total);
   const avgComments = total === 0 ? 0 : Math.round((commentCount / total) * 10) / 10;
+  const assigneeProcessingTime = Object.entries(
+    inquiries.reduce<Record<string, { totalHours: number; count: number }>>((acc, inquiry) => {
+      const completedAt = inquiry.auditLogs[0]?.createdAt;
+
+      if (!completedAt) {
+        return acc;
+      }
+
+      const key = inquiry.assigneeName ?? "未割り当て";
+      const durationHours =
+        (completedAt.getTime() - inquiry.createdAt.getTime()) / (1000 * 60 * 60);
+
+      if (durationHours < 0) {
+        return acc;
+      }
+
+      acc[key] ??= { totalHours: 0, count: 0 };
+      acc[key].totalHours += durationHours;
+      acc[key].count += 1;
+      return acc;
+    }, {})
+  )
+    .map(([label, value]) => ({
+      label,
+      count: value.count,
+      avgHours: value.totalHours / value.count,
+    }))
+    .sort((a, b) => a.avgHours - b.avgHours);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.12),_transparent_26%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-6 py-10">
@@ -332,6 +391,52 @@ export default async function DashboardPage() {
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">担当者別の平均処理時間</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              登録から完了までの時間を、担当者ごとに平均で見られます。
+            </p>
+
+            {assigneeProcessingTime.length > 0 ? (
+              <div className="mt-6 space-y-4">
+                {assigneeProcessingTime.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-800">{item.label}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          完了案件 {item.count} 件の平均
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-right">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
+                          Average Lead Time
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-cyan-950">
+                          {formatDuration(item.avgHours)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6">
+                <p className="text-sm font-semibold text-slate-700">
+                  まだ完了案件が少ないため、処理時間を集計できません。
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  ステータスが完了になった問い合わせが増えると、担当者ごとの平均時間がここに表示されます。
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900">最近の更新</h2>
             <p className="mt-1 text-sm text-slate-500">
               直近の監査ログをダッシュボードから確認できます。
@@ -362,6 +467,40 @@ export default async function DashboardPage() {
                     {log.comment ?? `${getStatusLabel(log.inquiry.status)} の問い合わせで更新がありました。`}
                   </p>
                   <p className="mt-2 text-xs text-slate-500">{formatDate(log.createdAt)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">直近の問い合わせ一覧</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              ダッシュボードから最近更新された案件へすぐ移動できます。
+            </p>
+
+            <div className="mt-6 space-y-4">
+              {inquiries.slice(0, 5).map((inquiry) => (
+                <Link
+                  key={inquiry.id}
+                  href={`/inquiries/${inquiry.id}`}
+                  className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-cyan-300 hover:bg-cyan-50/40"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {getStatusLabel(inquiry.status)}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      担当: {inquiry.assigneeName ?? "未割り当て"}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      コメント {inquiry._count.comments} 件
+                    </span>
+                  </div>
+                  <p className="mt-3 font-semibold text-slate-900">{inquiry.title}</p>
+                  <p className="mt-1 text-sm text-slate-600">{inquiry.customerName}</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    最終更新 {formatDate(inquiry.updatedAt)}
+                  </p>
                 </Link>
               ))}
             </div>

@@ -2,12 +2,29 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  readDraftHistory,
+  type DraftHistoryItem,
+  writeDraftHistory,
+} from "@/lib/localDraftHistory";
 
 type Props = {
   assigneeOptions: string[];
 };
 
 const STORAGE_KEY = "ai-support-workflow:inquiry-filters";
+const HISTORY_KEY = "ai-support-workflow:inquiry-filters-history";
+
+type FilterDraft = {
+  keyword: string;
+  status: string;
+  priority: string;
+  assignee: string;
+};
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleString("ja-JP");
+}
 
 export default function InquiryFilters({ assigneeOptions }: Props) {
   const router = useRouter();
@@ -18,6 +35,7 @@ export default function InquiryFilters({ assigneeOptions }: Props) {
   const [status, setStatus] = useState(searchParams.get("status") ?? "");
   const [priority, setPriority] = useState(searchParams.get("priority") ?? "");
   const [assignee, setAssignee] = useState(searchParams.get("assignee") ?? "");
+  const [history, setHistory] = useState<DraftHistoryItem<FilterDraft>[]>([]);
   const restoredRef = useRef(false);
 
   const updateParam = useCallback((key: string, value: string) => {
@@ -59,6 +77,7 @@ export default function InquiryFilters({ assigneeOptions }: Props) {
     }
 
     const saved = window.localStorage.getItem(STORAGE_KEY);
+    setHistory(readDraftHistory<FilterDraft>(HISTORY_KEY));
 
     if (!saved) {
       restoredRef.current = true;
@@ -111,6 +130,22 @@ export default function InquiryFilters({ assigneeOptions }: Props) {
         assignee,
       })
     );
+    setHistory(
+      writeDraftHistory<FilterDraft>(HISTORY_KEY, {
+        id: crypto.randomUUID(),
+        savedAt: new Date().toISOString(),
+        label:
+          keyword || assignee || status || priority
+            ? `検索:${keyword || "なし"} / 担当:${assignee || "すべて"}`
+            : "すべて",
+        payload: {
+          keyword,
+          status,
+          priority,
+          assignee,
+        },
+      })
+    );
   }, [keyword, status, priority, assignee]);
 
   useEffect(() => {
@@ -132,6 +167,22 @@ export default function InquiryFilters({ assigneeOptions }: Props) {
     router.push(pathname);
   }
 
+  function restoreFromHistory(item: DraftHistoryItem<FilterDraft>) {
+    setKeyword(item.payload.keyword);
+    setStatus(item.payload.status);
+    setPriority(item.payload.priority);
+    setAssignee(item.payload.assignee);
+
+    const params = new URLSearchParams();
+    if (item.payload.keyword) params.set("keyword", item.payload.keyword);
+    if (item.payload.status) params.set("status", item.payload.status);
+    if (item.payload.priority) params.set("priority", item.payload.priority);
+    if (item.payload.assignee) params.set("assignee", item.payload.assignee);
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  }
+
   return (
     <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -142,7 +193,7 @@ export default function InquiryFilters({ assigneeOptions }: Props) {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="件名・顧客名・本文で検索"
+            placeholder="件名・顧客名・本文・担当者で検索"
             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-500"
           />
         </div>
@@ -227,6 +278,43 @@ export default function InquiryFilters({ assigneeOptions }: Props) {
           <p className="self-center text-sm text-slate-500">絞り込み中...</p>
         ) : null}
       </div>
+
+      {history.length > 0 ? (
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">絞り込み復元履歴</p>
+              <p className="mt-1 text-sm text-slate-500">
+                直近の検索条件を一覧から呼び戻せます。
+              </p>
+            </div>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+              {history.length} 件
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {history.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{item.label}</p>
+                  <p className="mt-1 text-xs text-slate-500">{formatDate(item.savedAt)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => restoreFromHistory(item)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                >
+                  条件を復元
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

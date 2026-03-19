@@ -2,9 +2,25 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  readDraftHistory,
+  type DraftHistoryItem,
+  writeDraftHistory,
+} from "@/lib/localDraftHistory";
 
 const STORAGE_KEY = "ai-support-workflow:new-inquiry-draft";
+const HISTORY_KEY = "ai-support-workflow:new-inquiry-draft-history";
 const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
+type InquiryDraft = {
+  title: string;
+  customerName: string;
+  inquiryBody: string;
+};
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleString("ja-JP");
+}
 
 export default function InquiryForm() {
   const router = useRouter();
@@ -15,9 +31,11 @@ export default function InquiryForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [restored, setRestored] = useState(false);
+  const [history, setHistory] = useState<DraftHistoryItem<InquiryDraft>[]>([]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
+    setHistory(readDraftHistory<InquiryDraft>(HISTORY_KEY));
 
     if (!saved) {
       return;
@@ -49,15 +67,29 @@ export default function InquiryForm() {
       return;
     }
 
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        title,
-        customerName,
-        inquiryBody,
+    const payload = {
+      title,
+      customerName,
+      inquiryBody,
+    };
+
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    setHistory(
+      writeDraftHistory<InquiryDraft>(HISTORY_KEY, {
+        id: crypto.randomUUID(),
+        savedAt: new Date().toISOString(),
+        label: `${title || "件名未入力"} / ${customerName || "顧客名未入力"}`,
+        payload,
       })
     );
   }, [title, customerName, inquiryBody]);
+
+  function restoreFromHistory(item: DraftHistoryItem<InquiryDraft>) {
+    setTitle(item.payload.title);
+    setCustomerName(item.payload.customerName);
+    setInquiryBody(item.payload.inquiryBody);
+    setRestored(true);
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -172,6 +204,43 @@ export default function InquiryForm() {
           {isDemoMode ? "デモモードでは登録停止中" : loading ? "登録中..." : "問い合わせを登録"}
         </button>
       </div>
+
+      {history.length > 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">復元履歴</p>
+              <p className="mt-1 text-sm text-slate-500">
+                直近の自動保存内容から、明示的に復元できます。
+              </p>
+            </div>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+              {history.length} 件
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {history.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{item.label}</p>
+                  <p className="mt-1 text-xs text-slate-500">{formatDate(item.savedAt)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => restoreFromHistory(item)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                >
+                  この内容を復元
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }
