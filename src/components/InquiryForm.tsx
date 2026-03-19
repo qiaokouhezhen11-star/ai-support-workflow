@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "ai-support-workflow:new-inquiry-draft";
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 export default function InquiryForm() {
   const router = useRouter();
@@ -60,6 +61,12 @@ export default function InquiryForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (isDemoMode) {
+      setError("デモモードでは新規登録を停止しています。ローカル環境でお試しください。");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -97,6 +104,12 @@ export default function InquiryForm() {
       {restored ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           前回の入力内容をローカル保存から復元しました。
+        </div>
+      ) : null}
+
+      {isDemoMode ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          Vercelデモ環境では新規登録を停止しています。画面確認用の公開モードです。
         </div>
       ) : null}
 
@@ -153,10 +166,10 @@ export default function InquiryForm() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || isDemoMode}
           className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
         >
-          {loading ? "登録中..." : "問い合わせを登録"}
+          {isDemoMode ? "デモモードでは登録停止中" : loading ? "登録中..." : "問い合わせを登録"}
         </button>
       </div>
     </form>

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  getReadOnlyDeploymentMessage,
+  isReadOnlyDeployment,
+} from "@/lib/deployMode";
 import { prisma } from "@/lib/prisma";
 import { openai } from "@/lib/openai";
 
@@ -23,6 +27,13 @@ const aiResultSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    if (isReadOnlyDeployment()) {
+      return NextResponse.json(
+        { error: getReadOnlyDeploymentMessage() },
+        { status: 403 }
+      );
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: "OPENAI_API_KEY が設定されていません。" },

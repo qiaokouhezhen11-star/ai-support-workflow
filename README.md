@@ -9,6 +9,9 @@
 - Demo: `準備中`
 - Repository: `https://github.com/qiaokouhezhen11-star/ai-support-workflow`
 
+Vercelで公開するときは、まず `閲覧中心のデモモード` として出す想定です。  
+SQLite はVercel上で永続書き込みに向かないため、公開環境では編集系操作を停止し、ローカルではフル機能で動かす構成にしています。
+
 固定サンプルデータの詳細URL:
 
 - `http://localhost:3000/inquiries/sample-billing-001`
@@ -151,6 +154,11 @@ AI解析は必要なときだけ実行する形にしています。
 
 新規問い合わせフォームと一覧フィルターは、ブラウザ内に一時保存するようにしました。  
 これにより、リロードや画面移動があっても入力途中の内容を戻しやすくしています。
+
+### 9. Vercelでは安全なデモモードで公開できるようにした
+
+VercelではローカルSQLiteへの永続書き込みが難しいため、公開環境ではデモモードを有効にして編集系の操作を止めています。  
+これにより、一覧・詳細・ダッシュボードは見せつつ、書き込みエラーで壊れた印象にならないようにしています。
 
 ## 画面イメージ
 
@@ -297,7 +305,10 @@ npm install
 ```bash
 DATABASE_URL="file:./dev.db"
 OPENAI_API_KEY="your_api_key"
+NEXT_PUBLIC_DEMO_MODE="false"
 ```
+
+`.env.example` も用意しています。
 
 ### 3. Prisma Client を生成
 
@@ -322,6 +333,41 @@ npm run seed
 ```bash
 npm run dev
 ```
+
+## Vercelデプロイ準備
+
+### 1. 今回の公開方針
+
+- ローカル: フル機能で動作
+- Vercel: デモモードで公開
+
+### 2. Vercelに設定する環境変数
+
+```bash
+DATABASE_URL=file:./dev.db
+NEXT_PUBLIC_DEMO_MODE=true
+OPENAI_API_KEY=your_api_key
+```
+
+補足:
+
+- `NEXT_PUBLIC_DEMO_MODE=true` にすると、公開環境では新規登録や更新系ボタンが停止します
+- `OPENAI_API_KEY` は将来の切り替え用として設定可能ですが、デモモードではAI解析も停止しています
+- この構成は「まず見せる」ための準備です。書き込みありで本番運用する場合は、将来的にPostgres系DBへ切り替えるのがおすすめです
+
+### 3. Vercelでのデプロイ手順
+
+1. GitHubのリポジトリをVercelへ連携する
+2. Framework Preset は `Next.js` を選ぶ
+3. 上の環境変数を設定する
+4. そのままデプロイする
+
+### 4. デプロイ後に確認すること
+
+- ホーム、一覧、詳細、ダッシュボードが開けるか
+- 上部にデモモードの案内バーが表示されるか
+- 新規登録や保存系ボタンが停止しているか
+- 詳細画面の類似問い合わせ、ナレッジ候補、監査ログが読めるか
 
 ## 次の改善候補
 

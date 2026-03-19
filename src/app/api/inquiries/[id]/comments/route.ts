@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  getReadOnlyDeploymentMessage,
+  isReadOnlyDeployment,
+} from "@/lib/deployMode";
 import { prisma } from "@/lib/prisma";
 
 const createCommentSchema = z.object({
@@ -57,6 +61,13 @@ export async function GET(_req: Request, context: RouteContext) {
 
 export async function POST(req: Request, context: RouteContext) {
   try {
+    if (isReadOnlyDeployment()) {
+      return NextResponse.json(
+        { error: getReadOnlyDeploymentMessage() },
+        { status: 403 }
+      );
+    }
+
     const { id } = await context.params;
     const json = await req.json();
     const parsed = createCommentSchema.parse(json);

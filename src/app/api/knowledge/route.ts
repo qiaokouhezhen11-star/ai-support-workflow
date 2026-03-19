@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  getReadOnlyDeploymentMessage,
+  isReadOnlyDeployment,
+} from "@/lib/deployMode";
 import { prisma } from "@/lib/prisma";
 
 const knowledgeSchema = z.object({
@@ -26,6 +30,13 @@ function normalizeList(values: string[] | undefined) {
 
 export async function POST(req: Request) {
   try {
+    if (isReadOnlyDeployment()) {
+      return NextResponse.json(
+        { error: getReadOnlyDeploymentMessage() },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const parsed = knowledgeSchema.parse(body);
 

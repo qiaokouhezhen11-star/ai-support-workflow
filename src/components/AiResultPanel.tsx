@@ -24,6 +24,7 @@ const categoryOptions = [
 ] as const;
 
 const priorityOptions = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 function SectionHeading({
   eyebrow,
@@ -126,6 +127,12 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
   }, [summary, draftReply, aiReason]);
 
   async function handleSave() {
+    if (isDemoMode) {
+      setMessage("デモモードではAI解析結果の保存を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
     setMessageType("");
@@ -228,6 +235,12 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
       </div>
 
       <div className="px-6 py-6 md:px-8">
+        {isDemoMode ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            Vercelデモ環境ではAI結果の保存を停止しています。ローカル環境では通常どおり編集できます。
+          </div>
+        ) : null}
+
         {isEmpty ? <EmptyStateCard /> : null}
 
         <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -240,7 +253,8 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
               onChange={(e) =>
                 setCategory(e.target.value as (typeof categoryOptions)[number])
               }
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              disabled={isDemoMode}
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {categoryOptions.map((item) => (
                 <option key={item} value={item}>
@@ -269,7 +283,8 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
               onChange={(e) =>
                 setPriority(e.target.value as (typeof priorityOptions)[number])
               }
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              disabled={isDemoMode}
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {priorityOptions.map((item) => (
                 <option key={item} value={item}>
@@ -298,9 +313,10 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
             <textarea
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
+              disabled={isDemoMode}
               rows={4}
               placeholder="AIが生成した要約、または手動で修正した要約を入力"
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </FieldCard>
         </div>
@@ -313,9 +329,10 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
             <textarea
               value={draftReply}
               onChange={(e) => setDraftReply(e.target.value)}
+              disabled={isDemoMode}
               rows={10}
               placeholder="AIが生成した回答案、または手動で修正した回答案を入力"
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </FieldCard>
         </div>
@@ -328,9 +345,10 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
             <textarea
               value={aiReason}
               onChange={(e) => setAiReason(e.target.value)}
+              disabled={isDemoMode}
               rows={5}
               placeholder="AIの判断理由、または手動で修正した理由を入力"
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </FieldCard>
         </div>
@@ -367,10 +385,10 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
 
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || isDemoMode}
             className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? "保存中..." : "AI結果を保存"}
+            {isDemoMode ? "デモモードでは保存停止中" : saving ? "保存中..." : "AI結果を保存"}
           </button>
         </div>
       </div>

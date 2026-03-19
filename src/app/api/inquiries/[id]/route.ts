@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  getReadOnlyDeploymentMessage,
+  isReadOnlyDeployment,
+} from "@/lib/deployMode";
 import { prisma } from "@/lib/prisma";
 
 const updateInquirySchema = z.object({
@@ -85,6 +89,13 @@ export async function GET(_: Request, { params }: Props) {
 
 export async function PATCH(req: Request, { params }: Props) {
   try {
+    if (isReadOnlyDeployment()) {
+      return NextResponse.json(
+        { error: getReadOnlyDeploymentMessage() },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const body = await req.json();
     const parsed = updateInquirySchema.parse(body);

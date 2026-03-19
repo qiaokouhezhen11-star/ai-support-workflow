@@ -20,6 +20,8 @@ type Props = {
   inquiry: Inquiry;
 };
 
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
 function formatDate(date: string) {
   return new Date(date).toLocaleString("ja-JP");
 }
@@ -87,6 +89,11 @@ export default function InquiryDetail({ inquiry }: Props) {
   }, [inquiry]);
 
   async function handleAnalyze() {
+    if (isDemoMode) {
+      setError("デモモードではAI解析を停止しています。ローカル環境でお試しください。");
+      return;
+    }
+
     setAnalyzing(true);
     setError("");
 
@@ -125,6 +132,11 @@ export default function InquiryDetail({ inquiry }: Props) {
   }
 
   async function updateStatus(status: Inquiry["status"]) {
+    if (isDemoMode) {
+      setError("デモモードではステータス更新を停止しています。");
+      return;
+    }
+
     setStatusUpdating(true);
     setError("");
 
@@ -155,6 +167,11 @@ export default function InquiryDetail({ inquiry }: Props) {
   }
 
   async function handleAssigneeSave() {
+    if (isDemoMode) {
+      setError("デモモードでは担当者更新を停止しています。");
+      return;
+    }
+
     setAssigneeSaving(true);
     setError("");
 
@@ -186,6 +203,11 @@ export default function InquiryDetail({ inquiry }: Props) {
   }
 
   async function handleTagsSave() {
+    if (isDemoMode) {
+      setError("デモモードではタグ更新を停止しています。");
+      return;
+    }
+
     setTagsSaving(true);
     setError("");
 
@@ -226,6 +248,12 @@ export default function InquiryDetail({ inquiry }: Props) {
 
   return (
     <div className="space-y-6">
+      {isDemoMode ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+          Vercelデモ環境では、AI解析や編集系の操作を停止しています。画面確認用の公開モードです。
+        </div>
+      ) : null}
+
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/60 px-6 py-6 md:px-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -432,8 +460,9 @@ export default function InquiryDetail({ inquiry }: Props) {
                   <input
                     value={assigneeName}
                     onChange={(e) => setAssigneeName(e.target.value)}
+                    disabled={isDemoMode}
                     placeholder="例: 佐藤"
-                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   <p className="mt-2 text-xs leading-5 text-slate-500">
                     誰が対応する問い合わせかを明確にして、一覧から追いやすくします。
@@ -443,10 +472,10 @@ export default function InquiryDetail({ inquiry }: Props) {
                 <button
                   type="button"
                   onClick={handleAssigneeSave}
-                  disabled={assigneeSaving}
+                  disabled={assigneeSaving || isDemoMode}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {assigneeSaving ? "保存中..." : "担当者を保存"}
+                  {isDemoMode ? "デモモードでは保存停止中" : assigneeSaving ? "保存中..." : "担当者を保存"}
                 </button>
               </div>
             </div>
@@ -460,8 +489,9 @@ export default function InquiryDetail({ inquiry }: Props) {
                   <input
                     value={tagsText}
                     onChange={(e) => setTagsText(e.target.value)}
+                    disabled={isDemoMode}
                     placeholder="例: 請求, 返金確認, 高優先"
-                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
+                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   <p className="mt-2 text-xs leading-5 text-slate-500">
                     カンマ区切りで複数入力できます。案件の特徴を一覧で見つけやすくします。
@@ -471,10 +501,10 @@ export default function InquiryDetail({ inquiry }: Props) {
                 <button
                   type="button"
                   onClick={handleTagsSave}
-                  disabled={tagsSaving}
+                  disabled={tagsSaving || isDemoMode}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {tagsSaving ? "保存中..." : "タグを保存"}
+                  {isDemoMode ? "デモモードでは保存停止中" : tagsSaving ? "保存中..." : "タグを保存"}
                 </button>
               </div>
             </div>
@@ -511,26 +541,26 @@ export default function InquiryDetail({ inquiry }: Props) {
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
                   onClick={handleAnalyze}
-                  disabled={analyzing}
+                  disabled={analyzing || isDemoMode}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {analyzing ? "AI解析中..." : "AIで解析する"}
+                  {isDemoMode ? "デモモードではAI解析停止中" : analyzing ? "AI解析中..." : "AIで解析する"}
                 </button>
 
                 <button
                   onClick={() => updateStatus("COMPLETED")}
-                  disabled={statusUpdating}
+                  disabled={statusUpdating || isDemoMode}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {statusUpdating ? "更新中..." : "完了にする"}
+                  {isDemoMode ? "デモモードでは更新停止中" : statusUpdating ? "更新中..." : "完了にする"}
                 </button>
 
                 <button
                   onClick={() => updateStatus("OPEN")}
-                  disabled={statusUpdating}
+                  disabled={statusUpdating || isDemoMode}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {statusUpdating ? "更新中..." : "未対応に戻す"}
+                  {isDemoMode ? "デモモードでは更新停止中" : statusUpdating ? "更新中..." : "未対応に戻す"}
                 </button>
               </div>
 

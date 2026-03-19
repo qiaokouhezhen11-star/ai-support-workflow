@@ -8,6 +8,8 @@ type Props = {
   inquiryId: string;
 };
 
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
 function formatDate(date: string) {
   return new Date(date).toLocaleString("ja-JP");
 }
@@ -122,6 +124,7 @@ function NoteCard({
                 <button
                   type="button"
                   onClick={() => onEditStart(comment)}
+                  disabled={isDemoMode}
                   className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
                 >
                   編集
@@ -129,7 +132,7 @@ function NoteCard({
                 <button
                   type="button"
                   onClick={() => onDelete(comment.id)}
-                  disabled={deleting}
+                  disabled={deleting || isDemoMode}
                   className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {deleting ? "削除中..." : "削除"}
@@ -202,6 +205,13 @@ export default function InternalNotePanel({ inquiryId }: Props) {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (isDemoMode) {
+      setMessage("デモモードでは社内メモの追加を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
     setPosting(true);
     setMessage("");
     setMessageType("");
@@ -254,6 +264,12 @@ export default function InternalNotePanel({ inquiryId }: Props) {
   }
 
   async function handleEditSubmit(commentId: string) {
+    if (isDemoMode) {
+      setMessage("デモモードでは社内メモの更新を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
     setSavingId(commentId);
     setMessage("");
     setMessageType("");
@@ -292,6 +308,12 @@ export default function InternalNotePanel({ inquiryId }: Props) {
   }
 
   async function handleDelete(commentId: string) {
+    if (isDemoMode) {
+      setMessage("デモモードでは社内メモの削除を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
     const confirmed = window.confirm("この社内メモを削除しますか？");
 
     if (!confirmed) {
@@ -359,6 +381,12 @@ export default function InternalNotePanel({ inquiryId }: Props) {
       </div>
 
       <div className="px-6 py-6 md:px-8">
+        {isDemoMode ? (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            Vercelデモ環境では社内メモの追加・編集・削除を停止しています。
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
           <div className="grid gap-4 md:grid-cols-[220px_1fr]">
             <div>
@@ -367,8 +395,9 @@ export default function InternalNotePanel({ inquiryId }: Props) {
                 type="text"
                 value={authorName}
                 onChange={(e) => setAuthorName(e.target.value)}
+                disabled={isDemoMode}
                 placeholder="例: 山田"
-                className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+                className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
               <p className="mt-2 text-xs leading-5 text-slate-500">
                 未入力の場合は「担当者」で保存されます。
@@ -380,9 +409,10 @@ export default function InternalNotePanel({ inquiryId }: Props) {
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
+                disabled={isDemoMode}
                 rows={5}
                 placeholder="例: 返金判断の可能性あり。利用状況を確認してから一次回答する。"
-                className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+                className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
           </div>
@@ -419,10 +449,10 @@ export default function InternalNotePanel({ inquiryId }: Props) {
 
             <button
               type="submit"
-              disabled={posting}
+              disabled={posting || isDemoMode}
               className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {posting ? "保存中..." : "社内メモを追加"}
+              {isDemoMode ? "デモモードでは追加停止中" : posting ? "保存中..." : "社内メモを追加"}
             </button>
           </div>
         </form>

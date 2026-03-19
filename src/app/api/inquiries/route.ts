@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  getReadOnlyDeploymentMessage,
+  isReadOnlyDeployment,
+} from "@/lib/deployMode";
 import { prisma } from "@/lib/prisma";
 
 const createInquirySchema = z.object({
@@ -20,6 +24,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    if (isReadOnlyDeployment()) {
+      return NextResponse.json(
+        { error: getReadOnlyDeploymentMessage() },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const parsed = createInquirySchema.parse(body);
 
