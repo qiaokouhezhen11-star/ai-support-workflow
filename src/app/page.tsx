@@ -25,7 +25,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/inquiries"
-              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
+              className="rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-500"
             >
               問い合わせ一覧を見る
             </Link>

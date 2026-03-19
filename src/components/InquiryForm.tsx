@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const STORAGE_KEY = "ai-support-workflow:new-inquiry-draft";
 
 export default function InquiryForm() {
   const router = useRouter();
@@ -11,6 +13,50 @@ export default function InquiryForm() {
   const [inquiryBody, setInquiryBody] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+
+    if (!saved) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(saved) as {
+        title?: string;
+        customerName?: string;
+        inquiryBody?: string;
+      };
+
+      if (parsed.title || parsed.customerName || parsed.inquiryBody) {
+        setTitle(parsed.title ?? "");
+        setCustomerName(parsed.customerName ?? "");
+        setInquiryBody(parsed.inquiryBody ?? "");
+        setRestored(true);
+      }
+    } catch {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    const hasValue = title.trim() || customerName.trim() || inquiryBody.trim();
+
+    if (!hasValue) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        title,
+        customerName,
+        inquiryBody,
+      })
+    );
+  }, [title, customerName, inquiryBody]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,6 +82,7 @@ export default function InquiryForm() {
       }
 
       const created = await res.json();
+      window.localStorage.removeItem(STORAGE_KEY);
       router.push(`/inquiries/${created.id}`);
       router.refresh();
     } catch (err) {
@@ -47,6 +94,12 @@ export default function InquiryForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {restored ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          前回の入力内容をローカル保存から復元しました。
+        </div>
+      ) : null}
+
       <div>
         <label className="mb-2 block text-sm font-semibold text-slate-700">
           件名
@@ -93,13 +146,19 @@ export default function InquiryForm() {
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-      >
-        {loading ? "登録中..." : "問い合わせを登録"}
-      </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-500">
+          入力途中の内容は、このブラウザ内に自動保存されます。
+        </p>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          {loading ? "登録中..." : "問い合わせを登録"}
+        </button>
+      </div>
     </form>
   );
 }

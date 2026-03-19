@@ -47,6 +47,16 @@ type Props = {
   }>;
 };
 
+type AuditLogInput = {
+  inquiryId: string;
+  action: "STATUS_UPDATED" | "ASSIGNEE_UPDATED" | "FIELD_UPDATED";
+  actorName: string;
+  fieldName: string | null;
+  beforeValue: string | null;
+  afterValue: string | null;
+  comment: string | null;
+};
+
 export async function GET(_: Request, { params }: Props) {
   try {
     const { id } = await params;
@@ -98,20 +108,22 @@ export async function PATCH(req: Request, { params }: Props) {
       );
     }
 
-    const logs = auditableFields
-      .filter((field) => field in data)
-      .map((field) => {
+    const logs = auditableFields.reduce<AuditLogInput[]>((acc, field) => {
+      if (!(field in data)) {
+        return acc;
+      }
+
         const beforeValue = stringifyValue(current[field]);
         const afterValue = stringifyValue(data[field]);
 
         if (beforeValue === afterValue) {
-          return null;
+          return acc;
         }
 
         const isStatus = field === "status";
         const isAssignee = field === "assigneeName";
 
-        return {
+        acc.push({
           inquiryId: id,
           action: isStatus
             ? "STATUS_UPDATED"
@@ -127,9 +139,10 @@ export async function PATCH(req: Request, { params }: Props) {
             : isAssignee
               ? "担当者が更新されました。"
               : `${field} が更新されました。`,
-        };
-      })
-      .filter((item) => item !== null);
+        });
+
+        return acc;
+      }, []);
 
     const nextTags = tags
       ? Array.from(

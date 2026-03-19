@@ -2,6 +2,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 
 async function main() {
+  await prisma.knowledgeArticle.deleteMany();
   await prisma.inquiryTag.deleteMany();
   await prisma.inquiryAuditLog.deleteMany();
   await prisma.inquiryComment.deleteMany();
@@ -58,6 +59,45 @@ async function main() {
     },
   });
 
+  const inquiry4 = await prisma.inquiry.create({
+    data: {
+      id: "sample-billing-002",
+      title: "請求書の金額と管理画面の表示が一致しない",
+      customerName: "田中 美咲",
+      inquiryBody:
+        "今月の請求書に記載されている金額と、管理画面の利用明細に表示される合計金額が一致していません。差額の理由を確認したいです。",
+      category: "BILLING",
+      priority: "HIGH",
+      summary:
+        "請求書と管理画面の金額差異に関する問い合わせ。請求明細と調整項目の確認が必要。",
+      draftReply:
+        "お問い合わせありがとうございます。請求書と管理画面の表示差異について、対象月の請求明細と調整内容を確認のうえご案内いたします。",
+      aiReason: "請求内容の不一致に関する問い合わせであり、金額確認が必要なため優先度は高と判断。",
+      status: "REVIEW_NEEDED",
+      assigneeName: "佐藤",
+    },
+  });
+
+  const inquiry5 = await prisma.inquiry.create({
+    data: {
+      id: "sample-trouble-002",
+      title: "SSOログイン後にダッシュボードだけ表示されない",
+      customerName: "高橋 次郎",
+      inquiryBody:
+        "SSOでログインするとトップ画面までは見えますが、ダッシュボードへ移動した瞬間に画面が真っ白になります。社内の複数ユーザーで再現しています。",
+      category: "TROUBLESHOOTING",
+      priority: "URGENT",
+      summary:
+        "SSOログイン後の画面表示不具合。複数ユーザーで再現しており、認証連携または画面初期表示の異常が疑われる。",
+      draftReply:
+        "お問い合わせありがとうございます。SSOログイン後の表示不具合について、再現状況と認証連携の状態を確認しております。進捗があり次第、優先してご案内いたします。",
+      aiReason:
+        "ログイン後の主要画面が利用できず複数ユーザーへ影響しているため、緊急度は高いと判断。",
+      status: "AI_DRAFTED",
+      assigneeName: "開発担当",
+    },
+  });
+
   await prisma.inquiryComment.createMany({
     data: [
       {
@@ -75,6 +115,16 @@ async function main() {
         authorName: "開発担当",
         body: "フロント側の表示崩れではなく、APIレスポンス異常の可能性を調査中。",
       },
+      {
+        inquiryId: inquiry4.id,
+        authorName: "佐藤",
+        body: "調整額の計上タイミングを経理チームに確認中。",
+      },
+      {
+        inquiryId: inquiry5.id,
+        authorName: "開発担当",
+        body: "SSO連携時の権限取得ログを確認。ダッシュボード初期APIの403疑いあり。",
+      },
     ],
   });
 
@@ -88,6 +138,12 @@ async function main() {
       { inquiryId: inquiry2.id, name: "緊急" },
       { inquiryId: inquiry3.id, name: "機能要望" },
       { inquiryId: inquiry3.id, name: "CSV" },
+      { inquiryId: inquiry4.id, name: "請求" },
+      { inquiryId: inquiry4.id, name: "請求明細" },
+      { inquiryId: inquiry4.id, name: "金額差異" },
+      { inquiryId: inquiry5.id, name: "障害" },
+      { inquiryId: inquiry5.id, name: "ログイン" },
+      { inquiryId: inquiry5.id, name: "SSO" },
     ],
   });
 
@@ -150,6 +206,67 @@ async function main() {
         actorName: "システム",
         comment: "問い合わせが登録されました。",
       },
+      {
+        inquiryId: inquiry4.id,
+        action: "CREATED",
+        actorName: "システム",
+        comment: "問い合わせが登録されました。",
+      },
+      {
+        inquiryId: inquiry4.id,
+        action: "AI_RESULT_SAVED",
+        actorName: "システム",
+        comment: "AI解析結果を保存済みのサンプルです。",
+      },
+      {
+        inquiryId: inquiry5.id,
+        action: "CREATED",
+        actorName: "システム",
+        comment: "問い合わせが登録されました。",
+      },
+      {
+        inquiryId: inquiry5.id,
+        action: "AI_ANALYZED",
+        actorName: "システム",
+        comment: "AI解析を実行して候補を生成しました。",
+      },
+    ],
+  });
+
+  await prisma.knowledgeArticle.createMany({
+    data: [
+      {
+        title: "請求差異の一次確認テンプレート",
+        summary: "請求書と管理画面の金額がずれるときに確認する基本項目です。",
+        content:
+          "対象月、契約プラン、割引・返金・調整額、決済代行の処理結果を順番に確認します。一次回答では、差額要因を確認中であることと次回連絡予定を先に伝えると安心感が出ます。",
+        category: "BILLING",
+        priority: "HIGH",
+        tagsText: "請求, 返金確認, 請求明細",
+        keywordsText: "二重請求, 差額, 決済ログ, 明細",
+        createdBy: "山田",
+      },
+      {
+        title: "SSOログイン障害の切り分けメモ",
+        summary: "SSOログイン後に表示が崩れるときの確認観点をまとめたナレッジです。",
+        content:
+          "認証基盤の応答、トークン期限、権限マッピング、初期表示APIのステータス、ブラウザコンソールのエラーを確認します。複数ユーザーで再現する場合は障害告知の判断も早めに行います。",
+        category: "TROUBLESHOOTING",
+        priority: "URGENT",
+        tagsText: "ログイン, 障害, SSO",
+        keywordsText: "真っ白, ダッシュボード, 権限, 403",
+        createdBy: "開発担当",
+      },
+      {
+        title: "機能要望ヒアリング項目",
+        summary: "機能追加の相談を受けたときに抜けやすい確認項目です。",
+        content:
+          "誰が使うか、頻度、現状の代替手段、CSV出力が必要な列、出力タイミング、既存ワークフローへの影響を確認すると、優先度判断と要件整理がしやすくなります。",
+        category: "FEATURE_REQUEST",
+        tagsText: "機能要望, CSV",
+        keywordsText: "レポート, 出力, 要件整理",
+        createdBy: "PM",
+      },
     ],
   });
 
@@ -158,6 +275,8 @@ async function main() {
     inquiry1: inquiry1.id,
     inquiry2: inquiry2.id,
     inquiry3: inquiry3.id,
+    inquiry4: inquiry4.id,
+    inquiry5: inquiry5.id,
   });
 }
 

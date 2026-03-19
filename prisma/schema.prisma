@@ -100,3 +100,19 @@ model InquiryAuditLog {
 
   @@index([inquiryId, createdAt])
 }
+
+model KnowledgeArticle {
+  id           String           @id @default(cuid())
+  title        String
+  summary      String
+  content      String
+  category     InquiryCategory?
+  priority     InquiryPriority?
+  tagsText     String?
+  keywordsText String?
+  createdBy    String           @default("担当者")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([category, priority, updatedAt])
+}

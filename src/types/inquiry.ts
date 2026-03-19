@@ -50,6 +50,7 @@ export type SimilarInquiryCandidate = {
   matchedTags: string[];
   reason: string;
   updatedAt: string;
+  score: number;
 };
 
 export type KnowledgeSuggestion = {
@@ -57,8 +58,22 @@ export type KnowledgeSuggestion = {
   title: string;
   summary: string;
   content: string;
-  source: "rule" | "history";
+  source: "rule" | "history" | "manual";
   confidence: "high" | "medium";
+};
+
+export type KnowledgeArticle = {
+  id: string;
+  title: string;
+  summary: string;
+  content: string;
+  category: InquiryCategory | null;
+  priority: InquiryPriority | null;
+  tagsText: string | null;
+  keywordsText: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Inquiry = {
@@ -80,4 +95,5 @@ export type Inquiry = {
   tags?: string[];
   similarInquiries?: SimilarInquiryCandidate[];
   knowledgeSuggestions?: KnowledgeSuggestion[];
+  knowledgeArticles?: KnowledgeArticle[];
 };

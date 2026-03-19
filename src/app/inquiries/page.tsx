@@ -29,6 +29,7 @@ export default async function InquiriesPage({ searchParams }: PageProps) {
             { title: { contains: keyword } },
             { customerName: { contains: keyword } },
             { inquiryBody: { contains: keyword } },
+            { assigneeName: { contains: keyword } },
           ],
         }
       : {}),
@@ -127,7 +128,7 @@ export default async function InquiriesPage({ searchParams }: PageProps) {
               </Link>
               <Link
                 href="/inquiries/new"
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
               >
                 新規登録
               </Link>

@@ -23,26 +23,120 @@ function EmptyState() {
   );
 }
 
-function NoteCard({ comment }: { comment: InquiryComment }) {
+function NoteCard({
+  comment,
+  isEditing,
+  editingAuthorName,
+  editingBody,
+  saving,
+  deleting,
+  onEditStart,
+  onEditCancel,
+  onEditSubmit,
+  onDelete,
+  onAuthorChange,
+  onBodyChange,
+}: {
+  comment: InquiryComment;
+  isEditing: boolean;
+  editingAuthorName: string;
+  editingBody: string;
+  saving: boolean;
+  deleting: boolean;
+  onEditStart: (comment: InquiryComment) => void;
+  onEditCancel: () => void;
+  onEditSubmit: (commentId: string) => void;
+  onDelete: (commentId: string) => void;
+  onAuthorChange: (value: string) => void;
+  onBodyChange: (value: string) => void;
+}) {
+  const isUpdated = comment.updatedAt !== comment.createdAt;
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-            {comment.authorName}
-          </span>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-            {comment.body}
-          </p>
+          {isEditing ? (
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={editingAuthorName}
+                onChange={(e) => onAuthorChange(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+              />
+              <textarea
+                value={editingBody}
+                onChange={(e) => onBodyChange(e.target.value)}
+                rows={4}
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+              />
+            </div>
+          ) : (
+            <>
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                {comment.authorName}
+              </span>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                {comment.body}
+              </p>
+            </>
+          )}
         </div>
 
-        <div className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Created At
-          </p>
-          <p className="mt-1 text-sm font-semibold text-slate-800">
-            {formatDate(comment.createdAt)}
-          </p>
+        <div className="shrink-0 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Created At
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {formatDate(comment.createdAt)}
+            </p>
+            {isUpdated ? (
+              <p className="mt-1 text-xs text-slate-500">
+                更新: {formatDate(comment.updatedAt)}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onEditSubmit(comment.id)}
+                  disabled={saving}
+                  className="inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "保存中..." : "保存"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onEditCancel}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                >
+                  キャンセル
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onEditStart(comment)}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                >
+                  編集
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(comment.id)}
+                  disabled={deleting}
+                  className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deleting ? "削除中..." : "削除"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -69,6 +163,11 @@ export default function InternalNotePanel({ inquiryId }: Props) {
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingAuthorName, setEditingAuthorName] = useState("");
+  const [editingBody, setEditingBody] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "">("");
 
@@ -137,6 +236,98 @@ export default function InternalNotePanel({ inquiryId }: Props) {
       setMessageType("error");
     } finally {
       setPosting(false);
+    }
+  }
+
+  function handleEditStart(comment: InquiryComment) {
+    setEditingId(comment.id);
+    setEditingAuthorName(comment.authorName);
+    setEditingBody(comment.body);
+    setMessage("");
+    setMessageType("");
+  }
+
+  function handleEditCancel() {
+    setEditingId(null);
+    setEditingAuthorName("");
+    setEditingBody("");
+  }
+
+  async function handleEditSubmit(commentId: string) {
+    setSavingId(commentId);
+    setMessage("");
+    setMessageType("");
+
+    try {
+      const res = await fetch(`/api/inquiries/${inquiryId}/comments/${commentId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          authorName: editingAuthorName,
+          body: editingBody,
+        }),
+      });
+
+      const data = await parseApiResponse(res);
+
+      if (!res.ok) {
+        throw new Error(data.error || "社内メモの更新に失敗しました。");
+      }
+
+      handleEditCancel();
+      setMessage("社内メモを更新しました。");
+      setMessageType("success");
+      await fetchComments();
+      router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "社内メモの更新に失敗しました。"
+      );
+      setMessageType("error");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function handleDelete(commentId: string) {
+    const confirmed = window.confirm("この社内メモを削除しますか？");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(commentId);
+    setMessage("");
+    setMessageType("");
+
+    try {
+      const res = await fetch(`/api/inquiries/${inquiryId}/comments/${commentId}`, {
+        method: "DELETE",
+      });
+
+      const data = await parseApiResponse(res);
+
+      if (!res.ok) {
+        throw new Error(data.error || "社内メモの削除に失敗しました。");
+      }
+
+      if (editingId === commentId) {
+        handleEditCancel();
+      }
+
+      setMessage("社内メモを削除しました。");
+      setMessageType("success");
+      await fetchComments();
+      router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "社内メモの削除に失敗しました。"
+      );
+      setMessageType("error");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -246,7 +437,21 @@ export default function InternalNotePanel({ inquiryId }: Props) {
           ) : (
             <div className="space-y-4">
               {comments.map((comment) => (
-                <NoteCard key={comment.id} comment={comment} />
+                <NoteCard
+                  key={comment.id}
+                  comment={comment}
+                  isEditing={editingId === comment.id}
+                  editingAuthorName={editingAuthorName}
+                  editingBody={editingBody}
+                  saving={savingId === comment.id}
+                  deleting={deletingId === comment.id}
+                  onEditStart={handleEditStart}
+                  onEditCancel={handleEditCancel}
+                  onEditSubmit={handleEditSubmit}
+                  onDelete={handleDelete}
+                  onAuthorChange={setEditingAuthorName}
+                  onBodyChange={setEditingBody}
+                />
               ))}
             </div>
           )}

@@ -581,6 +581,9 @@ export default function InquiryDetail({ inquiry }: Props) {
                   className="block rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-sky-50 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
                 >
                   <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                      一致度 {item.score} 点
+                    </span>
                     <span
                       className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
                         item.status
@@ -634,7 +637,7 @@ export default function InquiryDetail({ inquiry }: Props) {
           <SectionHeader
             label="ナレッジ候補"
             title="対応に役立つナレッジ候補"
-            description="カテゴリ、優先度、タグ、現在の回答案をもとに、確認するとよい観点や対応メモを表示します。"
+            description="カテゴリ、優先度、タグ、現在の回答案、手動登録したナレッジをもとに、確認するとよい観点や対応メモを表示します。"
           />
         </div>
 
@@ -654,7 +657,11 @@ export default function InquiryDetail({ inquiry }: Props) {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      {item.source === "rule" ? "ルールベース" : "過去履歴ベース"}
+                      {item.source === "rule"
+                        ? "ルールベース"
+                        : item.source === "manual"
+                          ? "手動登録ナレッジ"
+                          : "過去履歴ベース"}
                     </span>
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
                       信頼度: {item.confidence === "high" ? "高" : "中"}

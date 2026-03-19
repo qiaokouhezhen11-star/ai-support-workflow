@@ -1,4 +1,6 @@
 import Link from "next/link";
+import DashboardCharts from "@/components/DashboardCharts";
+import KnowledgeLibraryPanel from "@/components/KnowledgeLibraryPanel";
 import { prisma } from "@/lib/prisma";
 import { getStatusLabel } from "@/lib/inquiryLabels";
 import { getAuditActionLabel } from "@/lib/auditLogs";
@@ -15,6 +17,13 @@ function formatDate(date: Date) {
   return new Date(date).toLocaleString("ja-JP");
 }
 
+function dayLabel(date: Date) {
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+  }).format(date);
+}
+
 export default async function DashboardPage() {
   const [
     total,
@@ -27,6 +36,7 @@ export default async function DashboardPage() {
     commentCount,
     inquiries,
     recentLogs,
+    knowledgeArticles,
   ] = await Promise.all([
     prisma.inquiry.count(),
     prisma.inquiry.count({ where: { status: "OPEN" } }),
@@ -62,6 +72,12 @@ export default async function DashboardPage() {
           },
         },
       },
+    }),
+    prisma.knowledgeArticle.findMany({
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 6,
     }),
   ]);
 
@@ -105,6 +121,49 @@ export default async function DashboardPage() {
     { label: "完了", value: completedCount },
   ];
 
+  const categoryItems = [
+    {
+      label: "請求",
+      value: inquiries.filter((item) => item.category === "BILLING").length,
+      colorClass: "bg-emerald-500",
+    },
+    {
+      label: "不具合",
+      value: inquiries.filter((item) => item.category === "TROUBLESHOOTING").length,
+      colorClass: "bg-sky-500",
+    },
+    {
+      label: "機能要望",
+      value: inquiries.filter((item) => item.category === "FEATURE_REQUEST").length,
+      colorClass: "bg-violet-500",
+    },
+    {
+      label: "一般 / その他",
+      value: inquiries.filter(
+        (item) => item.category === "GENERAL" || item.category === "OTHER" || item.category === null
+      ).length,
+      colorClass: "bg-slate-500",
+    },
+  ];
+
+  const today = new Date();
+  const intakeTrend = Array.from({ length: 7 }, (_, index) => {
+    const targetDate = new Date(today);
+    targetDate.setHours(0, 0, 0, 0);
+    targetDate.setDate(today.getDate() - (6 - index));
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(targetDate.getDate() + 1);
+
+    return {
+      label: dayLabel(targetDate),
+      value: inquiries.filter((item) => item.createdAt >= targetDate && item.createdAt < nextDate).length,
+    };
+  });
+
+  const completionRate = percent(completedCount, total);
+  const assignmentRate = percent(assignedCount, total);
+  const avgComments = total === 0 ? 0 : Math.round((commentCount / total) * 10) / 10;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.12),_transparent_26%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-6 py-10">
       <div className="mx-auto max-w-6xl">
@@ -123,7 +182,7 @@ export default async function DashboardPage() {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/inquiries"
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-500"
               >
                 問い合わせ一覧
               </Link>
@@ -139,10 +198,34 @@ export default async function DashboardPage() {
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
-            { label: "総問い合わせ数", value: total, note: "現在管理中の件数", className: "from-slate-50 to-white" },
-            { label: "担当者設定済み", value: assignedCount, note: "割り当て済みの件数", className: "from-violet-50 to-white" },
-            { label: "緊急対応", value: urgentCount, note: "優先度が緊急", className: "from-red-50 to-white" },
-            { label: "社内メモ", value: commentCount, note: "蓄積されたメモ件数", className: "from-amber-50 to-white" },
+            {
+              label: "総問い合わせ数",
+              value: `${total}件`,
+              note: "現在管理中の件数",
+              subValue: `完了率 ${completionRate}%`,
+              className: "from-slate-50 to-white",
+            },
+            {
+              label: "担当者設定済み",
+              value: `${assignedCount}件`,
+              note: "割り当て済みの件数",
+              subValue: `割り当て率 ${assignmentRate}%`,
+              className: "from-violet-50 to-white",
+            },
+            {
+              label: "緊急対応",
+              value: `${urgentCount}件`,
+              note: "優先度が緊急",
+              subValue: `未対応 ${openCount}件`,
+              className: "from-red-50 to-white",
+            },
+            {
+              label: "社内メモ",
+              value: `${commentCount}件`,
+              note: "蓄積されたメモ件数",
+              subValue: `平均 ${avgComments}件 / 問い合わせ`,
+              className: "from-amber-50 to-white",
+            },
           ].map((item) => (
             <div
               key={item.label}
@@ -152,10 +235,17 @@ export default async function DashboardPage() {
               <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
                 {item.value}
               </p>
+              <p className="mt-2 text-sm font-semibold text-slate-700">{item.subValue}</p>
               <p className="mt-2 text-xs leading-5 text-slate-500">{item.note}</p>
             </div>
           ))}
         </section>
+
+        <DashboardCharts
+          categoryItems={categoryItems}
+          intakeTrend={intakeTrend}
+          total={total}
+        />
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -277,6 +367,14 @@ export default async function DashboardPage() {
             </div>
           </div>
         </section>
+
+        <KnowledgeLibraryPanel
+          articles={knowledgeArticles.map((article) => ({
+            ...article,
+            createdAt: article.createdAt.toISOString(),
+            updatedAt: article.updatedAt.toISOString(),
+          }))}
+        />
       </div>
     </main>
   );

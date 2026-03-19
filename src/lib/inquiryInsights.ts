@@ -1,5 +1,6 @@
 import type {
   Inquiry,
+  KnowledgeArticle,
   KnowledgeSuggestion,
   SimilarInquiryCandidate,
 } from "@/types/inquiry";
@@ -23,28 +24,152 @@ type InquiryLike = {
   tags: Array<{ name: string }> | string[];
 };
 
+const JP_STOP_WORDS = new Set([
+  "です",
+  "ます",
+  "した",
+  "して",
+  "する",
+  "され",
+  "ため",
+  "よう",
+  "こと",
+  "確認",
+  "お願い",
+  "ください",
+  "おります",
+  "なり",
+  "ある",
+  "いる",
+  "対応",
+  "利用",
+  "画面",
+  "管理",
+  "内容",
+  "機能",
+  "表示",
+  "状態",
+]);
+
 function normalizeTags(tags: InquiryLike["tags"]) {
   return tags.map((tag) => (typeof tag === "string" ? tag : tag.name));
 }
 
-function tokenize(text: string) {
+function normalizeListText(text: string | null | undefined) {
+  if (!text) {
+    return [];
+  }
+
   return Array.from(
     new Set(
       text
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}\s]/gu, " ")
-        .split(/\s+/)
+        .split(",")
         .map((item) => item.trim())
-        .filter((item) => item.length >= 2)
+        .filter(Boolean)
     )
   );
 }
 
-function sharedKeywords(a: string, b: string) {
-  const aTokens = tokenize(a);
-  const bTokenSet = new Set(tokenize(b));
+function tokenizeSegment(segment: string) {
+  const normalized = segment.trim().toLowerCase();
 
-  return aTokens.filter((token) => bTokenSet.has(token));
+  if (!normalized) {
+    return [];
+  }
+
+  if (/^[a-z0-9]+$/i.test(normalized)) {
+    return normalized.length >= 2 ? [normalized] : [];
+  }
+
+  const compact = normalized.replace(/\s+/g, "");
+
+  if (compact.length < 2) {
+    return [];
+  }
+
+  const tokens: string[] = [];
+
+  for (let index = 0; index < compact.length - 1; index += 1) {
+    tokens.push(compact.slice(index, index + 2));
+  }
+
+  if (compact.length >= 3) {
+    for (let index = 0; index < compact.length - 2; index += 1) {
+      tokens.push(compact.slice(index, index + 3));
+    }
+  }
+
+  return tokens;
+}
+
+function tokenize(text: string) {
+  const segments = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .flatMap((segment) => segment.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+|[a-z0-9]+/giu) ?? []);
+
+  return Array.from(
+    new Set(
+      segments
+        .flatMap((segment) => tokenizeSegment(segment))
+        .map((item) => item.trim())
+        .filter((item) => item.length >= 2 && !JP_STOP_WORDS.has(item))
+    )
+  );
+}
+
+function buildWeightedTokenMap(fields: Array<{ text: string | null | undefined; weight: number }>) {
+  const tokenMap = new Map<string, number>();
+
+  for (const field of fields) {
+    const tokens = tokenize(field.text ?? "");
+
+    for (const token of tokens) {
+      tokenMap.set(token, Math.max(tokenMap.get(token) ?? 0, field.weight));
+    }
+  }
+
+  return tokenMap;
+}
+
+function sumTokenOverlapScore(current: Map<string, number>, candidate: Map<string, number>) {
+  const shared = Array.from(current.keys())
+    .filter((token) => candidate.has(token))
+    .map((token) => ({
+      token,
+      weight: (current.get(token) ?? 0) + (candidate.get(token) ?? 0),
+    }))
+    .sort((a, b) => b.weight - a.weight);
+
+  const score = Math.min(
+    25,
+    shared.slice(0, 5).reduce((total, item) => total + Math.min(6, item.weight), 0)
+  );
+
+  return {
+    score,
+    keywords: shared.slice(0, 3).map((item) => item.token),
+  };
+}
+
+function getUpdatedAtTime(value: Date | string) {
+  return typeof value === "string" ? new Date(value).getTime() : value.getTime();
+}
+
+function getFreshnessScore(updatedAtTime: number) {
+  const now = Date.now();
+  const days = Math.max(0, (now - updatedAtTime) / (1000 * 60 * 60 * 24));
+
+  if (days <= 3) {
+    return 5;
+  }
+
+  if (days <= 14) {
+    return 3;
+  }
+
+  return 1;
 }
 
 export function buildSimilarInquiryCandidates(
@@ -52,51 +177,64 @@ export function buildSimilarInquiryCandidates(
   candidates: InquiryLike[]
 ): SimilarInquiryCandidate[] {
   const currentTags = normalizeTags(inquiry.tags);
-  const currentTitleAndBody = `${inquiry.title} ${inquiry.inquiryBody} ${inquiry.summary ?? ""}`;
+  const currentTokenMap = buildWeightedTokenMap([
+    { text: inquiry.title, weight: 5 },
+    { text: inquiry.inquiryBody, weight: 4 },
+    { text: inquiry.summary, weight: 3 },
+    { text: inquiry.draftReply, weight: 2 },
+    { text: currentTags.join(" "), weight: 6 },
+  ]);
 
   return candidates
     .map((candidate) => {
       const candidateTags = normalizeTags(candidate.tags);
       const matchedTags = candidateTags.filter((tag) => currentTags.includes(tag));
-      const keywordMatches = sharedKeywords(
-        currentTitleAndBody,
-        `${candidate.title} ${candidate.inquiryBody} ${candidate.summary ?? ""}`
-      );
+      const candidateTokenMap = buildWeightedTokenMap([
+        { text: candidate.title, weight: 5 },
+        { text: candidate.inquiryBody, weight: 4 },
+        { text: candidate.summary, weight: 3 },
+        { text: candidate.draftReply, weight: 2 },
+        { text: candidateTags.join(" "), weight: 6 },
+      ]);
+
+      const keywordMatch = sumTokenOverlapScore(currentTokenMap, candidateTokenMap);
       const reasons: string[] = [];
       let score = 0;
 
       if (inquiry.category && inquiry.category === candidate.category) {
-        score += 4;
-        reasons.push(`カテゴリが同じ (${getCategoryLabel(candidate.category)})`);
+        score += 30;
+        reasons.push(`カテゴリ一致: ${getCategoryLabel(candidate.category)}`);
       }
 
       if (inquiry.priority && inquiry.priority === candidate.priority) {
-        score += 2;
-        reasons.push(`優先度が近い (${getPriorityLabel(candidate.priority)})`);
+        score += 10;
+        reasons.push(`優先度一致: ${getPriorityLabel(candidate.priority)}`);
       }
 
       if (matchedTags.length > 0) {
-        score += Math.min(matchedTags.length * 2, 4);
+        score += Math.min(20, matchedTags.length * 7);
         reasons.push(`共通タグ: ${matchedTags.join(", ")}`);
       }
 
-      if (keywordMatches.length > 0) {
-        score += Math.min(keywordMatches.length, 4);
-        reasons.push(`本文キーワード一致: ${keywordMatches.slice(0, 3).join(", ")}`);
+      if (keywordMatch.keywords.length > 0) {
+        score += keywordMatch.score;
+        reasons.push(`本文の近い語句: ${keywordMatch.keywords.join(", ")}`);
       }
 
       if (candidate.summary) {
-        score += 1;
+        score += 3;
+      }
+
+      if (candidate.draftReply) {
+        score += 2;
       }
 
       if (candidate.status === "COMPLETED" || candidate.status === "REVIEW_NEEDED") {
-        score += 1;
+        score += 5;
       }
 
-      const updatedAtTime =
-        typeof candidate.updatedAt === "string"
-          ? new Date(candidate.updatedAt).getTime()
-          : candidate.updatedAt.getTime();
+      const updatedAtTime = getUpdatedAtTime(candidate.updatedAt);
+      score += getFreshnessScore(updatedAtTime);
 
       return {
         id: candidate.id,
@@ -114,11 +252,11 @@ export function buildSimilarInquiryCandidates(
           typeof candidate.updatedAt === "string"
             ? candidate.updatedAt
             : candidate.updatedAt.toISOString(),
-        score,
+        score: Math.min(100, score),
         updatedAtTime,
       };
     })
-    .filter((item) => item.score > 0)
+    .filter((item) => item.score >= 20)
     .sort((a, b) => {
       if (b.score !== a.score) {
         return b.score - a.score;
@@ -126,7 +264,7 @@ export function buildSimilarInquiryCandidates(
 
       return b.updatedAtTime - a.updatedAtTime;
     })
-    .slice(0, 3)
+    .slice(0, 4)
     .map((item) => ({
       id: item.id,
       title: item.title,
@@ -138,6 +276,7 @@ export function buildSimilarInquiryCandidates(
       matchedTags: item.matchedTags,
       reason: item.reason,
       updatedAt: item.updatedAt,
+      score: item.score,
     }));
 }
 
@@ -235,5 +374,71 @@ export function buildHistoryKnowledgeCandidates(
         "類似案件の要約を参考に、初回ヒアリング項目や一次回答の言い回しを揃えられます。",
       source: "history",
       confidence: "medium",
+    }));
+}
+
+export function buildManualKnowledgeSuggestions(
+  inquiry: InquiryLike,
+  articles: KnowledgeArticle[]
+): KnowledgeSuggestion[] {
+  const inquiryTags = normalizeTags(inquiry.tags);
+  const inquiryTokenMap = buildWeightedTokenMap([
+    { text: inquiry.title, weight: 5 },
+    { text: inquiry.inquiryBody, weight: 4 },
+    { text: inquiry.summary, weight: 3 },
+    { text: inquiry.draftReply, weight: 2 },
+    { text: inquiryTags.join(" "), weight: 6 },
+  ]);
+
+  return articles
+    .map((article) => {
+      const articleTags = normalizeListText(article.tagsText);
+      const matchedTags = articleTags.filter((tag) => inquiryTags.includes(tag));
+      const articleTokenMap = buildWeightedTokenMap([
+        { text: article.title, weight: 5 },
+        { text: article.summary, weight: 4 },
+        { text: article.content, weight: 3 },
+        { text: article.tagsText, weight: 6 },
+        { text: article.keywordsText, weight: 5 },
+      ]);
+      const keywordMatch = sumTokenOverlapScore(inquiryTokenMap, articleTokenMap);
+
+      let score = 0;
+
+      if (article.category && article.category === inquiry.category) {
+        score += 30;
+      }
+
+      if (article.priority && article.priority === inquiry.priority) {
+        score += 10;
+      }
+
+      if (matchedTags.length > 0) {
+        score += Math.min(20, matchedTags.length * 7);
+      }
+
+      score += keywordMatch.score;
+
+      return {
+        article,
+        score: Math.min(100, score),
+      };
+    })
+    .filter((item) => item.score >= 20)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+
+      return new Date(b.article.updatedAt).getTime() - new Date(a.article.updatedAt).getTime();
+    })
+    .slice(0, 3)
+    .map(({ article, score }) => ({
+      id: `manual-${article.id}`,
+      title: article.title,
+      summary: article.summary,
+      content: article.content,
+      source: "manual" as const,
+      confidence: score >= 60 ? "high" : "medium",
     }));
 }

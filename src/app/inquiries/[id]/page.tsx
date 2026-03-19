@@ -4,6 +4,7 @@ import InquiryDetail from "@/components/InquiryDetail";
 import {
   buildHistoryKnowledgeCandidates,
   buildKnowledgeSuggestions,
+  buildManualKnowledgeSuggestions,
   buildSimilarInquiryCandidates,
 } from "@/lib/inquiryInsights";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +40,13 @@ export default async function InquiryDetailPage({ params }: Props) {
     },
   });
 
+  const knowledgeArticles = await prisma.knowledgeArticle.findMany({
+    orderBy: {
+      updatedAt: "desc",
+    },
+    take: 20,
+  });
+
   if (!inquiry) {
     notFound();
   }
@@ -66,6 +74,14 @@ export default async function InquiryDetailPage({ params }: Props) {
   const similarInquiries = buildSimilarInquiryCandidates(inquiry, relatedInquiries);
   const knowledgeSuggestions = [
     ...buildKnowledgeSuggestions(inquiry),
+    ...buildManualKnowledgeSuggestions(
+      inquiry,
+      knowledgeArticles.map((article) => ({
+        ...article,
+        createdAt: article.createdAt.toISOString(),
+        updatedAt: article.updatedAt.toISOString(),
+      }))
+    ),
     ...buildHistoryKnowledgeCandidates(similarInquiries),
   ].slice(0, 5);
 
@@ -81,6 +97,11 @@ export default async function InquiryDetailPage({ params }: Props) {
     tags: tags.map((tag) => tag.name),
     similarInquiries,
     knowledgeSuggestions,
+    knowledgeArticles: knowledgeArticles.map((article) => ({
+      ...article,
+      createdAt: article.createdAt.toISOString(),
+      updatedAt: article.updatedAt.toISOString(),
+    })),
   };
 
   return (
