@@ -60,6 +60,36 @@ export function getPriorityBadgeClass(priority: Inquiry["priority"]) {
   }
 }
 
+export function getApprovalStatusLabel(status: Inquiry["approvalStatus"]) {
+  switch (status) {
+    case "NOT_REQUESTED":
+      return "未申請";
+    case "PENDING":
+      return "承認待ち";
+    case "APPROVED":
+      return "承認済み";
+    case "CHANGES_REQUESTED":
+      return "差し戻し";
+    default:
+      return status;
+  }
+}
+
+export function getApprovalStatusBadgeClass(status: Inquiry["approvalStatus"]) {
+  switch (status) {
+    case "NOT_REQUESTED":
+      return "border-slate-200 bg-slate-100 text-slate-700";
+    case "PENDING":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "APPROVED":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "CHANGES_REQUESTED":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    default:
+      return "border-slate-200 bg-slate-100 text-slate-700";
+  }
+}
+
 export function getCategoryLabel(category: Inquiry["category"]) {
   switch (category) {
     case "GENERAL":

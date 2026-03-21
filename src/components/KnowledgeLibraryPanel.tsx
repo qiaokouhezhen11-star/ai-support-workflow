@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRole } from "@/components/RoleProvider";
 import type { KnowledgeArticle } from "@/types/inquiry";
 import { getCategoryLabel, getPriorityLabel } from "@/lib/inquiryLabels";
 
@@ -59,6 +60,7 @@ async function parseApiResponse(res: Response) {
 
 export default function KnowledgeLibraryPanel({ articles }: Props) {
   const router = useRouter();
+  const { can, roleLabel } = useRole();
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
@@ -70,12 +72,19 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<MessageType>("");
+  const canManageKnowledge = can("manageKnowledge");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (isDemoMode) {
       setMessage("デモモードではナレッジ登録を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
+    if (!canManageKnowledge) {
+      setMessage(`現在の権限（${roleLabel}）ではナレッジ登録できません。`);
       setMessageType("error");
       return;
     }
@@ -164,7 +173,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 placeholder="例: 請求差異の一次確認テンプレート"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -176,7 +185,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
                 type="text"
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 placeholder="例: 請求書と管理画面の金額がずれるときに確認する項目です。"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -187,7 +196,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {categoryOptions.map((item) => (
@@ -203,7 +212,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {priorityOptions.map((item) => (
@@ -220,7 +229,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
                 type="text"
                 value={tagsText}
                 onChange={(e) => setTagsText(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 placeholder="例: 請求, 返金確認"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -232,7 +241,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
                 type="text"
                 value={keywordsText}
                 onChange={(e) => setKeywordsText(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 placeholder="例: 二重請求, 差額, 明細"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -243,7 +252,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 rows={6}
                 placeholder="例: 対象月、契約プラン、割引・返金・調整額、決済代行ログを確認します。"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -256,7 +265,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
                 type="text"
                 value={createdBy}
                 onChange={(e) => setCreatedBy(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageKnowledge}
                 placeholder="例: 佐藤"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -294,7 +303,7 @@ export default function KnowledgeLibraryPanel({ articles }: Props) {
             </p>
             <button
               type="submit"
-              disabled={saving || isDemoMode}
+              disabled={saving || isDemoMode || !canManageKnowledge}
               className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isDemoMode ? "デモモードでは登録停止中" : saving ? "登録中..." : "ナレッジを登録"}

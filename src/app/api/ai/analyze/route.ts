@@ -4,6 +4,7 @@ import {
   getReadOnlyDeploymentMessage,
   isReadOnlyDeployment,
 } from "@/lib/deployMode";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { openai } from "@/lib/openai";
 
@@ -32,6 +33,11 @@ export async function POST(req: Request) {
         { error: getReadOnlyDeploymentMessage() },
         { status: 403 }
       );
+    }
+
+    const permission = await requirePermission("editInquiry");
+    if (permission.response) {
+      return permission.response;
     }
 
     if (!process.env.OPENAI_API_KEY) {

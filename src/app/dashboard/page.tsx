@@ -57,6 +57,7 @@ export default async function DashboardPage() {
     commentCount,
     inquiries,
     recentLogs,
+    recentAiEvaluations,
     knowledgeArticles,
     replyTemplates,
   ] = await Promise.all([
@@ -103,6 +104,20 @@ export default async function DashboardPage() {
             id: true,
             title: true,
             status: true,
+          },
+        },
+      },
+    }),
+    prisma.aiEvaluationLog.findMany({
+      take: 6,
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        inquiry: {
+          select: {
+            id: true,
+            title: true,
           },
         },
       },
@@ -203,6 +218,9 @@ export default async function DashboardPage() {
   const completionRate = percent(completedCount, total);
   const assignmentRate = percent(assignedCount, total);
   const avgComments = total === 0 ? 0 : Math.round((commentCount / total) * 10) / 10;
+  const aiAcceptedCount = recentAiEvaluations.filter((item) => item.result === "ACCEPTED").length;
+  const aiEditedCount = recentAiEvaluations.filter((item) => item.result === "EDITED").length;
+  const aiRejectedCount = recentAiEvaluations.filter((item) => item.result === "REJECTED").length;
   const overdueCount = inquiries.filter((item) =>
     getSlaMeta({
       slaDueAt: item.slaDueAt?.toISOString() ?? null,
@@ -457,6 +475,87 @@ export default async function DashboardPage() {
         </section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">AI評価ログ</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              AI回答案がどれくらい使えたかを、最近の評価から確認できます。
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-700">そのまま採用</p>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-emerald-950">
+                  {aiAcceptedCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-700">修正して利用</p>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-amber-950">
+                  {aiEditedCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                <p className="text-sm font-semibold text-rose-700">採用しない</p>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-rose-950">
+                  {aiRejectedCount}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {recentAiEvaluations.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6">
+                  <p className="text-sm font-semibold text-slate-700">
+                    まだAI評価ログはありません。
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    問い合わせ詳細のAI結果欄から、評価を追加できるようにしています。
+                  </p>
+                </div>
+              ) : (
+                recentAiEvaluations.map((item) => {
+                  const label =
+                    item.result === "ACCEPTED"
+                      ? "そのまま採用"
+                      : item.result === "EDITED"
+                        ? "修正して利用"
+                        : "採用しない";
+
+                  const toneClass =
+                    item.result === "ACCEPTED"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : item.result === "EDITED"
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-rose-200 bg-rose-50 text-rose-700";
+
+                  return (
+                    <Link
+                      key={item.id}
+                      href={`/inquiries/${item.inquiry.id}`}
+                      className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClass}`}
+                        >
+                          {label}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {item.evaluatedBy}
+                        </span>
+                      </div>
+                      <p className="mt-3 font-semibold text-slate-900">{item.inquiry.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        {item.memo ?? "メモなし"}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-500">{formatDate(item.createdAt)}</p>
+                    </Link>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900">SLAアラート</h2>
             <p className="mt-1 text-sm text-slate-500">

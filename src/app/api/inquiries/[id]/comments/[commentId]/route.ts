@@ -4,6 +4,7 @@ import {
   getReadOnlyDeploymentMessage,
   isReadOnlyDeployment,
 } from "@/lib/deployMode";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const updateCommentSchema = z.object({
@@ -42,6 +43,11 @@ export async function PATCH(req: Request, context: RouteContext) {
         { error: getReadOnlyDeploymentMessage() },
         { status: 403 }
       );
+    }
+
+    const permission = await requirePermission("editInquiry");
+    if (permission.response) {
+      return permission.response;
     }
 
     const { id, commentId } = await context.params;
@@ -108,6 +114,11 @@ export async function DELETE(_req: Request, context: RouteContext) {
         { error: getReadOnlyDeploymentMessage() },
         { status: 403 }
       );
+    }
+
+    const permission = await requirePermission("editInquiry");
+    if (permission.response) {
+      return permission.response;
     }
 
     const { id, commentId } = await context.params;

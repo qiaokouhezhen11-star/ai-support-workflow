@@ -4,6 +4,7 @@ import {
   getReadOnlyDeploymentMessage,
   isReadOnlyDeployment,
 } from "@/lib/deployMode";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const createCommentSchema = z.object({
@@ -66,6 +67,11 @@ export async function POST(req: Request, context: RouteContext) {
         { error: getReadOnlyDeploymentMessage() },
         { status: 403 }
       );
+    }
+
+    const permission = await requirePermission("editInquiry");
+    if (permission.response) {
+      return permission.response;
     }
 
     const { id } = await context.params;

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Inquiry } from "@/types/inquiry";
 import {
+  getApprovalStatusBadgeClass,
+  getApprovalStatusLabel,
   getCategoryBadgeClass,
   getCategoryLabel,
   getPriorityBadgeClass,
@@ -47,6 +49,13 @@ export default function InquiryList({ inquiries }: Props) {
                     )}`}
                   >
                     {getStatusLabel(inquiry.status)}
+                  </span>
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getApprovalStatusBadgeClass(
+                      inquiry.approvalStatus
+                    )}`}
+                  >
+                    {getApprovalStatusLabel(inquiry.approvalStatus)}
                   </span>
                   <span
                     className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getPriorityBadgeClass(
@@ -125,6 +134,22 @@ export default function InquiryList({ inquiries }: Props) {
                   </p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
                     {inquiry.commentCount ?? 0} 件
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Approval
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {getApprovalStatusLabel(inquiry.approvalStatus)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {inquiry.approvedBy
+                      ? `承認者: ${inquiry.approvedBy}`
+                      : inquiry.approvalRequestedAt
+                        ? "承認依頼済み"
+                        : "承認依頼前"}
                   </p>
                 </div>
 

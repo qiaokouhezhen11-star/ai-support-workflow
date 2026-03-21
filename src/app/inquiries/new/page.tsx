@@ -1,7 +1,37 @@
 import Link from "next/link";
 import InquiryForm from "@/components/InquiryForm";
+import { prisma } from "@/lib/prisma";
+import type { DuplicateCheckInquiry } from "@/types/inquiry";
 
-export default function NewInquiryPage() {
+export default async function NewInquiryPage() {
+  const inquiries = await prisma.inquiry.findMany({
+    include: {
+      tags: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    take: 20,
+  });
+
+  const existingInquiries: DuplicateCheckInquiry[] = inquiries.map((item) => ({
+    id: item.id,
+    title: item.title,
+    customerName: item.customerName,
+    inquiryBody: item.inquiryBody,
+    category: item.category,
+    priority: item.priority,
+    summary: item.summary,
+    draftReply: item.draftReply,
+    status: item.status,
+    updatedAt: item.updatedAt.toISOString(),
+    tags: item.tags.map((tag) => tag.name),
+  }));
+
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-10">
       <div className="mx-auto max-w-3xl">
@@ -22,7 +52,7 @@ export default function NewInquiryPage() {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <InquiryForm />
+          <InquiryForm existingInquiries={existingInquiries} />
         </div>
       </div>
     </main>

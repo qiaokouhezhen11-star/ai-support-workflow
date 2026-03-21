@@ -9,6 +9,14 @@ export type InquiryCategory =
 
 export type InquiryPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
+export type ApprovalStatus =
+  | "NOT_REQUESTED"
+  | "PENDING"
+  | "APPROVED"
+  | "CHANGES_REQUESTED";
+
+export type AiEvaluationResult = "ACCEPTED" | "EDITED" | "REJECTED";
+
 export type InquiryAuditAction =
   | "CREATED"
   | "AI_ANALYZED"
@@ -88,6 +96,28 @@ export type ReplyTemplate = {
   updatedAt: string;
 };
 
+export type AiEvaluationLog = {
+  id: string;
+  inquiryId: string;
+  result: AiEvaluationResult;
+  memo: string | null;
+  evaluatedBy: string;
+  createdAt: string;
+};
+
+export type UserRole = "ADMIN" | "MANAGER" | "AGENT" | "VIEWER";
+
+export type InquiryAttachment = {
+  id: string;
+  inquiryId: string;
+  fileName: string;
+  mimeType: string | null;
+  fileSize: number;
+  url: string;
+  uploadedBy: string;
+  createdAt: string;
+};
+
 export type Inquiry = {
   id: string;
   title: string;
@@ -100,6 +130,11 @@ export type Inquiry = {
   draftReply: string | null;
   aiReason: string | null;
   status: InquiryStatus;
+  approvalStatus: ApprovalStatus;
+  approvalRequestedAt: string | null;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  approvalComment: string | null;
   slaDueAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -110,4 +145,20 @@ export type Inquiry = {
   knowledgeSuggestions?: KnowledgeSuggestion[];
   knowledgeArticles?: KnowledgeArticle[];
   replyTemplates?: ReplyTemplate[];
+  aiEvaluations?: AiEvaluationLog[];
+  attachments?: InquiryAttachment[];
+};
+
+export type DuplicateCheckInquiry = {
+  id: string;
+  title: string;
+  customerName: string;
+  inquiryBody: string;
+  category: InquiryCategory | null;
+  priority: InquiryPriority | null;
+  summary: string | null;
+  draftReply: string | null;
+  status: InquiryStatus;
+  updatedAt: string;
+  tags: string[];
 };

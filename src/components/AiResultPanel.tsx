@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Inquiry, ReplyTemplate } from "@/types/inquiry";
+import { useRole } from "@/components/RoleProvider";
+import type { AiEvaluationResult, Inquiry, ReplyTemplate } from "@/types/inquiry";
 import {
+  getApprovalStatusBadgeClass,
+  getApprovalStatusLabel,
   getCategoryBadgeClass,
   getCategoryLabel,
   getPriorityBadgeClass,
@@ -25,6 +28,31 @@ const categoryOptions = [
 
 const priorityOptions = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+const evaluationOptions: {
+  value: AiEvaluationResult;
+  label: string;
+  description: string;
+  toneClass: string;
+}[] = [
+  {
+    value: "ACCEPTED",
+    label: "そのまま採用",
+    description: "AI回答案をほぼそのまま使えたとき",
+    toneClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+  {
+    value: "EDITED",
+    label: "修正して利用",
+    description: "一部直して使えたとき",
+    toneClass: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+  {
+    value: "REJECTED",
+    label: "採用しない",
+    description: "AI回答案を使わなかったとき",
+    toneClass: "border-rose-200 bg-rose-50 text-rose-700",
+  },
+];
 
 function SectionHeading({
   eyebrow,
@@ -148,6 +176,7 @@ function TemplateCard({
 }
 
 export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
+  const { can, roleLabel } = useRole();
   const [category, setCategory] = useState<(typeof categoryOptions)[number]>(
     inquiry.category ?? "GENERAL"
   );
@@ -158,6 +187,10 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
   const [draftReply, setDraftReply] = useState(inquiry.draftReply ?? "");
   const [aiReason, setAiReason] = useState(inquiry.aiReason ?? "");
   const [saving, setSaving] = useState(false);
+  const [evaluationResult, setEvaluationResult] =
+    useState<AiEvaluationResult>("EDITED");
+  const [evaluationMemo, setEvaluationMemo] = useState("");
+  const [evaluationSaving, setEvaluationSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "">("");
 
@@ -167,6 +200,8 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
     setSummary(inquiry.summary ?? "");
     setDraftReply(inquiry.draftReply ?? "");
     setAiReason(inquiry.aiReason ?? "");
+    setEvaluationMemo("");
+    setEvaluationResult("EDITED");
   }, [
     inquiry.category,
     inquiry.priority,
@@ -188,6 +223,8 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
 
     return (matched.length > 0 ? matched : templates).slice(0, 4);
   }, [category, inquiry.replyTemplates, priority]);
+  const canEditInquiry = can("editInquiry");
+  const canLogAiEvaluation = can("logAiEvaluation");
 
   function replaceDraftReply(body: string) {
     setDraftReply(body);
@@ -197,9 +234,64 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
     setDraftReply((current) => (current.trim() ? `${current.trim()}\n\n${body}` : body));
   }
 
+  async function handleEvaluationSave() {
+    if (isDemoMode) {
+      setMessage("デモモードではAI評価ログの保存を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
+    if (!canLogAiEvaluation) {
+      setMessage(`現在の権限（${roleLabel}）ではAI評価ログを保存できません。`);
+      setMessageType("error");
+      return;
+    }
+
+    setEvaluationSaving(true);
+    setMessage("");
+    setMessageType("");
+
+    try {
+      const res = await fetch(`/api/inquiries/${inquiry.id}/ai-evaluations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          result: evaluationResult,
+          memo: evaluationMemo.trim() || null,
+          evaluatedBy: actorName || inquiry.assigneeName || "担当者",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "AI評価ログの保存に失敗しました。");
+      }
+
+      setMessage("AI評価ログを保存しました。ダッシュボードや監査ログで振り返れます。");
+      setMessageType("success");
+      onSaved();
+    } catch (err) {
+      setMessage(
+        err instanceof Error ? err.message : "AI評価ログの保存に失敗しました。"
+      );
+      setMessageType("error");
+    } finally {
+      setEvaluationSaving(false);
+    }
+  }
+
   async function handleSave() {
     if (isDemoMode) {
       setMessage("デモモードではAI解析結果の保存を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
+    if (!canEditInquiry) {
+      setMessage(`現在の権限（${roleLabel}）ではAI結果を保存できません。`);
       setMessageType("error");
       return;
     }
@@ -220,6 +312,8 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
           summary,
           draftReply,
           aiReason,
+          approvalStatus: "NOT_REQUESTED",
+          approvalComment: null,
           status: "REVIEW_NEEDED",
           actorName: actorName || inquiry.assigneeName || "担当者",
         }),
@@ -231,7 +325,9 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
         throw new Error(data.error || "保存に失敗しました。");
       }
 
-      setMessage("AI解析結果を保存しました。ステータスを「確認中」に更新しています。");
+      setMessage(
+        "AI解析結果を保存しました。ステータスを「確認中」に更新し、承認状態を未申請に戻しています。"
+      );
       setMessageType("success");
       onSaved();
     } catch (err) {
@@ -279,6 +375,29 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
                 {draftReply.trim().length} 文字
               </p>
             </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                承認状態
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getApprovalStatusBadgeClass(
+                    inquiry.approvalStatus
+                  )}`}
+                >
+                  {getApprovalStatusLabel(inquiry.approvalStatus)}
+                </span>
+                {inquiry.approvedBy ? (
+                  <span className="text-xs font-semibold text-slate-500">
+                    承認者: {inquiry.approvedBy}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                回答案を編集して保存すると、最新内容で再確認できるよう承認状態を未申請に戻します。
+              </p>
+            </div>
           </div>
         </div>
 
@@ -324,7 +443,7 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
               onChange={(e) =>
                 setCategory(e.target.value as (typeof categoryOptions)[number])
               }
-              disabled={isDemoMode}
+              disabled={isDemoMode || !canEditInquiry}
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {categoryOptions.map((item) => (
@@ -354,7 +473,7 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
               onChange={(e) =>
                 setPriority(e.target.value as (typeof priorityOptions)[number])
               }
-              disabled={isDemoMode}
+              disabled={isDemoMode || !canEditInquiry}
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {priorityOptions.map((item) => (
@@ -384,7 +503,7 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
             <textarea
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              disabled={isDemoMode}
+              disabled={isDemoMode || !canEditInquiry}
               rows={4}
               placeholder="AIが生成した要約、または手動で修正した要約を入力"
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -429,7 +548,7 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
             <textarea
               value={draftReply}
               onChange={(e) => setDraftReply(e.target.value)}
-              disabled={isDemoMode}
+              disabled={isDemoMode || !canEditInquiry}
               rows={10}
               placeholder="AIが生成した回答案、または手動で修正した回答案を入力"
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -445,11 +564,116 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
             <textarea
               value={aiReason}
               onChange={(e) => setAiReason(e.target.value)}
-              disabled={isDemoMode}
+              disabled={isDemoMode || !canEditInquiry}
               rows={5}
               placeholder="AIの判断理由、または手動で修正した理由を入力"
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             />
+          </FieldCard>
+        </div>
+
+        <div className="mt-5">
+          <FieldCard
+            title="AI評価ログ"
+            description="AI回答案がどれくらい使えたかを記録します。あとで精度改善や運用ルールの見直しに使えます。"
+          >
+            <div className="grid gap-3 md:grid-cols-3">
+              {evaluationOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setEvaluationResult(option.value)}
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    evaluationResult === option.value
+                      ? option.toneClass
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="text-sm font-bold">{option.label}</p>
+                  <p className="mt-1 text-xs leading-5 opacity-80">
+                    {option.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={evaluationMemo}
+              onChange={(e) => setEvaluationMemo(e.target.value)}
+              disabled={isDemoMode || !canLogAiEvaluation}
+              rows={3}
+              placeholder="どこを直したか、なぜ採用しなかったかなどをメモできます。"
+              className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-500">
+                AIをそのまま使えたか、修正が必要だったかを残しておくと、改善ポイントが見えやすくなります。
+              </p>
+              <button
+                type="button"
+                onClick={handleEvaluationSave}
+                disabled={evaluationSaving || isDemoMode || !canLogAiEvaluation}
+                className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDemoMode
+                  ? "デモモードでは保存停止中"
+                  : evaluationSaving
+                    ? "保存中..."
+                    : "AI評価ログを保存"}
+              </button>
+            </div>
+
+            {(inquiry.aiEvaluations ?? []).length > 0 ? (
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">最近の評価</p>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {(inquiry.aiEvaluations ?? []).length} 件
+                  </span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {inquiry.aiEvaluations?.map((evaluation) => {
+                    const tone =
+                      evaluation.result === "ACCEPTED"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : evaluation.result === "EDITED"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700";
+                    const label =
+                      evaluation.result === "ACCEPTED"
+                        ? "そのまま採用"
+                        : evaluation.result === "EDITED"
+                          ? "修正して利用"
+                          : "採用しない";
+
+                    return (
+                      <div
+                        key={evaluation.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${tone}`}
+                          >
+                            {label}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-500">
+                            {evaluation.evaluatedBy}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {new Date(evaluation.createdAt).toLocaleString("ja-JP")}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          {evaluation.memo ?? "メモなし"}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </FieldCard>
         </div>
 
@@ -485,7 +709,7 @@ export default function AiResultPanel({ inquiry, onSaved, actorName }: Props) {
 
           <button
             onClick={handleSave}
-            disabled={saving || isDemoMode}
+            disabled={saving || isDemoMode || !canEditInquiry}
             className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isDemoMode ? "デモモードでは保存停止中" : saving ? "保存中..." : "AI結果を保存"}

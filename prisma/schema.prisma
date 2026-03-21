@@ -28,6 +28,19 @@ enum InquiryPriority {
   URGENT
 }
 
+enum ApprovalStatus {
+  NOT_REQUESTED
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum AiEvaluationResult {
+  ACCEPTED
+  EDITED
+  REJECTED
+}
+
 enum InquiryAuditAction {
   CREATED
   AI_ANALYZED
@@ -53,10 +66,17 @@ model Inquiry {
   aiReason     String?
 
   status       InquiryStatus    @default(OPEN)
+  approvalStatus ApprovalStatus @default(NOT_REQUESTED)
+  approvalRequestedAt DateTime?
+  approvedAt   DateTime?
+  approvedBy   String?
+  approvalComment String?
 
   comments     InquiryComment[]
   auditLogs    InquiryAuditLog[]
   tags         InquiryTag[]
+  aiEvaluations AiEvaluationLog[]
+  attachments  InquiryAttachment[]
 
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -130,4 +150,32 @@ model ReplyTemplate {
   updatedAt  DateTime         @updatedAt
 
   @@index([category, priority, updatedAt])
+}
+
+model AiEvaluationLog {
+  id          String             @id @default(cuid())
+  inquiryId   String
+  result      AiEvaluationResult
+  memo        String?
+  evaluatedBy String             @default("担当者")
+  createdAt   DateTime           @default(now())
+
+  inquiry     Inquiry            @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
+}
+
+model InquiryAttachment {
+  id         String   @id @default(cuid())
+  inquiryId  String
+  fileName   String
+  mimeType   String?
+  fileSize   Int
+  url        String
+  uploadedBy String   @default("担当者")
+  createdAt  DateTime @default(now())
+
+  inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
 }

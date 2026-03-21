@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRole } from "@/components/RoleProvider";
 import type { ReplyTemplate } from "@/types/inquiry";
 import { getCategoryLabel, getPriorityLabel } from "@/lib/inquiryLabels";
 
@@ -48,6 +49,7 @@ function formatDate(value: string) {
 
 export default function ReplyTemplateLibraryPanel({ templates }: Props) {
   const router = useRouter();
+  const { can, roleLabel } = useRole();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
@@ -57,12 +59,19 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<MessageType>("");
+  const canManageTemplates = can("manageTemplates");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (isDemoMode) {
       setMessage("デモモードでは定型文登録を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
+    if (!canManageTemplates) {
+      setMessage(`現在の権限（${roleLabel}）では定型文登録できません。`);
       setMessageType("error");
       return;
     }
@@ -150,7 +159,7 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageTemplates}
                 placeholder="例: 障害発生時の一次返信"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -162,7 +171,7 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageTemplates}
                 placeholder="例: ログイン障害で調査開始を伝える一次返信"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -173,7 +182,7 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageTemplates}
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {categoryOptions.map((item) => (
@@ -189,7 +198,7 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageTemplates}
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {priorityOptions.map((item) => (
@@ -205,7 +214,7 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageTemplates}
                 rows={6}
                 placeholder="例: お問い合わせありがとうございます。現在、状況を確認しております。進捗があり次第ご連絡いたします。"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -218,7 +227,7 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
                 type="text"
                 value={createdBy}
                 onChange={(e) => setCreatedBy(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canManageTemplates}
                 placeholder="例: 佐藤"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -256,7 +265,7 @@ export default function ReplyTemplateLibraryPanel({ templates }: Props) {
             </p>
             <button
               type="submit"
-              disabled={saving || isDemoMode}
+              disabled={saving || isDemoMode || !canManageTemplates}
               className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isDemoMode ? "デモモードでは登録停止中" : saving ? "登録中..." : "定型文を登録"}

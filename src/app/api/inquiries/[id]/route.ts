@@ -4,6 +4,7 @@ import {
   getReadOnlyDeploymentMessage,
   isReadOnlyDeployment,
 } from "@/lib/deployMode";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { calculateSlaDueAt } from "@/lib/sla";
 
@@ -20,6 +21,10 @@ const updateInquirySchema = z.object({
   summary: z.string().nullable().optional(),
   draftReply: z.string().nullable().optional(),
   aiReason: z.string().nullable().optional(),
+  approvalStatus: z
+    .enum(["NOT_REQUESTED", "PENDING", "APPROVED", "CHANGES_REQUESTED"])
+    .optional(),
+  approvalComment: z.string().trim().max(300).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(20)).max(8).optional(),
   status: z.enum(["OPEN", "AI_DRAFTED", "REVIEW_NEEDED", "COMPLETED"]).optional(),
   actorName: z.string().trim().max(50).optional(),
@@ -35,6 +40,8 @@ const auditableFields = [
   "summary",
   "draftReply",
   "aiReason",
+  "approvalStatus",
+  "approvalComment",
   "status",
 ] as const;
 
@@ -97,9 +104,21 @@ export async function PATCH(req: Request, { params }: Props) {
       );
     }
 
-    const { id } = await params;
     const body = await req.json();
     const parsed = updateInquirySchema.parse(body);
+
+    const requestedPermission =
+      parsed.approvalStatus &&
+      (parsed.approvalStatus === "APPROVED" ||
+        parsed.approvalStatus === "CHANGES_REQUESTED")
+        ? "approveAiReply"
+        : "editInquiry";
+    const permission = await requirePermission(requestedPermission);
+    if (permission.response) {
+      return permission.response;
+    }
+
+    const { id } = await params;
     const { actorName, tags, ...data } = parsed;
 
     const current = await prisma.inquiry.findUnique({
@@ -134,6 +153,7 @@ export async function PATCH(req: Request, { params }: Props) {
 
         const isStatus = field === "status";
         const isAssignee = field === "assigneeName";
+        const isApproval = field === "approvalStatus";
 
         acc.push({
           inquiryId: id,
@@ -150,6 +170,8 @@ export async function PATCH(req: Request, { params }: Props) {
             ? "ステータスが更新されました。"
             : isAssignee
               ? "担当者が更新されました。"
+              : isApproval
+                ? "承認状態が更新されました。"
               : `${field} が更新されました。`,
         });
 
@@ -157,8 +179,32 @@ export async function PATCH(req: Request, { params }: Props) {
       }, []);
 
     const hasPriorityUpdate = "priority" in data;
+    const hasApprovalStatusUpdate = "approvalStatus" in data;
     const computedSlaDueAt = hasPriorityUpdate
       ? calculateSlaDueAt(data.priority ?? null, current.createdAt)
+      : undefined;
+    const approvalMetadata = hasApprovalStatusUpdate
+      ? data.approvalStatus === "PENDING"
+        ? {
+            approvalRequestedAt: new Date(),
+            approvedAt: null,
+            approvedBy: null,
+          }
+        : data.approvalStatus === "APPROVED"
+          ? {
+              approvedAt: new Date(),
+              approvedBy: actorName || current.assigneeName || "承認者",
+            }
+          : data.approvalStatus === "CHANGES_REQUESTED"
+            ? {
+                approvedAt: null,
+                approvedBy: actorName || current.assigneeName || "承認者",
+              }
+            : {
+                approvalRequestedAt: null,
+                approvedAt: null,
+                approvedBy: null,
+              }
       : undefined;
 
     if (hasPriorityUpdate) {
@@ -215,6 +261,7 @@ export async function PATCH(req: Request, { params }: Props) {
         data: {
           ...data,
           ...(hasPriorityUpdate ? { slaDueAt: computedSlaDueAt ?? null } : {}),
+          ...(hasApprovalStatusUpdate ? approvalMetadata : {}),
         },
       });
 

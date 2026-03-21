@@ -4,6 +4,7 @@ import {
   getReadOnlyDeploymentMessage,
   isReadOnlyDeployment,
 } from "@/lib/deployMode";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const knowledgeSchema = z.object({
@@ -35,6 +36,11 @@ export async function POST(req: Request) {
         { error: getReadOnlyDeploymentMessage() },
         { status: 403 }
       );
+    }
+
+    const permission = await requirePermission("manageKnowledge");
+    if (permission.response) {
+      return permission.response;
     }
 
     const body = await req.json();

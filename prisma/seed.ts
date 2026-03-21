@@ -10,6 +10,7 @@ function addHours(hours: number) {
 async function main() {
   await prisma.replyTemplate.deleteMany();
   await prisma.knowledgeArticle.deleteMany();
+  await prisma.aiEvaluationLog.deleteMany();
   await prisma.inquiryTag.deleteMany();
   await prisma.inquiryAuditLog.deleteMany();
   await prisma.inquiryComment.deleteMany();
@@ -31,6 +32,11 @@ async function main() {
       aiReason:
         "請求・支払いに関する内容であり、金銭に関わるため優先度は高と判断。",
       status: "REVIEW_NEEDED",
+      approvalStatus: "APPROVED",
+      approvalRequestedAt: addHours(-10),
+      approvedAt: addHours(-8),
+      approvedBy: "品質確認者",
+      approvalComment: "一次回答としてそのまま利用可能です。",
       assigneeName: "佐藤",
       slaDueAt: addHours(-6),
     },
@@ -83,6 +89,9 @@ async function main() {
         "お問い合わせありがとうございます。請求書と管理画面の表示差異について、対象月の請求明細と調整内容を確認のうえご案内いたします。",
       aiReason: "請求内容の不一致に関する問い合わせであり、金額確認が必要なため優先度は高と判断。",
       status: "REVIEW_NEEDED",
+      approvalStatus: "PENDING",
+      approvalRequestedAt: addHours(-2),
+      approvalComment: "金額差異の原因説明が十分か確認依頼中。",
       assigneeName: "佐藤",
       slaDueAt: addHours(3),
     },
@@ -104,6 +113,10 @@ async function main() {
       aiReason:
         "ログイン後の主要画面が利用できず複数ユーザーへ影響しているため、緊急度は高いと判断。",
       status: "AI_DRAFTED",
+      approvalStatus: "CHANGES_REQUESTED",
+      approvalRequestedAt: addHours(-5),
+      approvedBy: "品質確認者",
+      approvalComment: "一次回答に回避策を追記してください。",
       assigneeName: "開発担当",
       slaDueAt: addHours(1),
     },
@@ -191,6 +204,15 @@ async function main() {
         comment: "担当者確認待ちに変更しました。",
       },
       {
+        inquiryId: inquiry1.id,
+        action: "FIELD_UPDATED",
+        actorName: "品質確認者",
+        fieldName: "approvalStatus",
+        beforeValue: "PENDING",
+        afterValue: "APPROVED",
+        comment: "回答案を承認しました。",
+      },
+      {
         inquiryId: inquiry2.id,
         action: "CREATED",
         actorName: "システム",
@@ -230,6 +252,15 @@ async function main() {
         comment: "AI解析結果を保存済みのサンプルです。",
       },
       {
+        inquiryId: inquiry4.id,
+        action: "FIELD_UPDATED",
+        actorName: "佐藤",
+        fieldName: "approvalStatus",
+        beforeValue: "NOT_REQUESTED",
+        afterValue: "PENDING",
+        comment: "回答案の承認依頼を出しました。",
+      },
+      {
         inquiryId: inquiry5.id,
         action: "CREATED",
         actorName: "システム",
@@ -240,6 +271,38 @@ async function main() {
         action: "AI_ANALYZED",
         actorName: "システム",
         comment: "AI解析を実行して候補を生成しました。",
+      },
+      {
+        inquiryId: inquiry5.id,
+        action: "FIELD_UPDATED",
+        actorName: "品質確認者",
+        fieldName: "approvalStatus",
+        beforeValue: "PENDING",
+        afterValue: "CHANGES_REQUESTED",
+        comment: "回避策の補足を依頼して差し戻しました。",
+      },
+    ],
+  });
+
+  await prisma.aiEvaluationLog.createMany({
+    data: [
+      {
+        inquiryId: inquiry1.id,
+        result: "ACCEPTED",
+        memo: "請求確認の一次返信としてそのまま使えました。",
+        evaluatedBy: "佐藤",
+      },
+      {
+        inquiryId: inquiry4.id,
+        result: "EDITED",
+        memo: "差額理由の説明を1文追加して利用しました。",
+        evaluatedBy: "佐藤",
+      },
+      {
+        inquiryId: inquiry5.id,
+        result: "REJECTED",
+        memo: "回避策の案内が不足していたため全面的に書き直しました。",
+        evaluatedBy: "開発担当",
       },
     ],
   });

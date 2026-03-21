@@ -10,6 +10,70 @@ import {
 import { prisma } from "@/lib/prisma";
 import type { Inquiry } from "@/types/inquiry";
 
+type InquiryDetailRecord = {
+  id: string;
+  title: string;
+  customerName: string;
+  inquiryBody: string;
+  assigneeName: string | null;
+  slaDueAt: Date | null;
+  category: Inquiry["category"];
+  priority: Inquiry["priority"];
+  summary: string | null;
+  draftReply: string | null;
+  aiReason: string | null;
+  status: Inquiry["status"];
+  approvalStatus: Inquiry["approvalStatus"];
+  approvalRequestedAt: Date | null;
+  approvedAt: Date | null;
+  approvedBy: string | null;
+  approvalComment: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: {
+    comments: number;
+  };
+  auditLogs: Array<{
+    id: string;
+    inquiryId: string;
+    action: Inquiry["auditLogs"] extends Array<infer T>
+      ? T extends { action: infer A }
+        ? A
+        : never
+      : never;
+    actorName: string;
+    fieldName: string | null;
+    beforeValue: string | null;
+    afterValue: string | null;
+    comment: string | null;
+    createdAt: Date;
+  }>;
+  tags: Array<{
+    id: string;
+    name: string;
+    createdAt: Date;
+    inquiryId: string;
+  }>;
+  aiEvaluations: Array<{
+    id: string;
+    inquiryId: string;
+    result: "ACCEPTED" | "EDITED" | "REJECTED";
+    memo: string | null;
+    evaluatedBy: string;
+    createdAt: Date;
+  }>;
+  attachments: Array<{
+    id: string;
+    inquiryId: string;
+    fileName: string;
+    mimeType: string | null;
+    fileSize: number;
+    url: string;
+    uploadedBy: string;
+    createdAt: Date;
+  }>;
+};
+
 type Props = {
   params: Promise<{
     id: string;
@@ -19,7 +83,7 @@ type Props = {
 export default async function InquiryDetailPage({ params }: Props) {
   const { id } = await params;
 
-  const inquiry = await prisma.inquiry.findUnique({
+  const inquiry = (await prisma.inquiry.findUnique({
     where: { id },
     include: {
       tags: {
@@ -27,10 +91,21 @@ export default async function InquiryDetailPage({ params }: Props) {
           createdAt: "asc",
         },
       },
+      attachments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
       auditLogs: {
         orderBy: {
           createdAt: "desc",
         },
+      },
+      aiEvaluations: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 6,
       },
       _count: {
         select: {
@@ -38,7 +113,7 @@ export default async function InquiryDetailPage({ params }: Props) {
         },
       },
     },
-  });
+  } as never)) as InquiryDetailRecord | null;
 
   const knowledgeArticles = await prisma.knowledgeArticle.findMany({
     orderBy: {
@@ -76,7 +151,7 @@ export default async function InquiryDetailPage({ params }: Props) {
     },
   });
 
-  const { _count, auditLogs, tags, ...item } = inquiry;
+  const { _count, auditLogs, tags, aiEvaluations, attachments, ...item } = inquiry;
   const similarInquiries = buildSimilarInquiryCandidates(inquiry, relatedInquiries);
   const knowledgeSuggestions = [
     ...buildKnowledgeSuggestions(inquiry),
@@ -93,7 +168,11 @@ export default async function InquiryDetailPage({ params }: Props) {
 
   const serialized: Inquiry = {
     ...item,
+    approvalRequestedAt: item.approvalRequestedAt?.toISOString() ?? null,
+    approvedAt: item.approvedAt?.toISOString() ?? null,
     slaDueAt: item.slaDueAt?.toISOString() ?? null,
+    approvalComment: item.approvalComment ?? null,
+    approvedBy: item.approvedBy ?? null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     auditLogs: auditLogs.map((log) => ({
@@ -113,6 +192,15 @@ export default async function InquiryDetailPage({ params }: Props) {
       ...template,
       createdAt: template.createdAt.toISOString(),
       updatedAt: template.updatedAt.toISOString(),
+    })),
+    aiEvaluations: aiEvaluations.map((evaluation) => ({
+      ...evaluation,
+      createdAt: evaluation.createdAt.toISOString(),
+    })),
+    attachments: attachments.map((attachment) => ({
+      ...attachment,
+      mimeType: attachment.mimeType ?? null,
+      createdAt: attachment.createdAt.toISOString(),
     })),
   };
 

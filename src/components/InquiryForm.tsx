@@ -1,12 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRole } from "@/components/RoleProvider";
 import {
   readDraftHistory,
   type DraftHistoryItem,
   writeDraftHistory,
 } from "@/lib/localDraftHistory";
+import { buildSimilarInquiryCandidates } from "@/lib/inquiryInsights";
+import { getStatusLabel } from "@/lib/inquiryLabels";
+import type { DuplicateCheckInquiry } from "@/types/inquiry";
 
 const STORAGE_KEY = "ai-support-workflow:new-inquiry-draft";
 const HISTORY_KEY = "ai-support-workflow:new-inquiry-draft-history";
@@ -18,12 +23,17 @@ type InquiryDraft = {
   inquiryBody: string;
 };
 
+type Props = {
+  existingInquiries?: DuplicateCheckInquiry[];
+};
+
 function formatDate(date: string) {
   return new Date(date).toLocaleString("ja-JP");
 }
 
-export default function InquiryForm() {
+export default function InquiryForm({ existingInquiries = [] }: Props) {
   const router = useRouter();
+  const { can, roleLabel } = useRole();
 
   const [title, setTitle] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -32,6 +42,35 @@ export default function InquiryForm() {
   const [error, setError] = useState("");
   const [restored, setRestored] = useState(false);
   const [history, setHistory] = useState<DraftHistoryItem<InquiryDraft>[]>([]);
+  const canCreateInquiry = can("createInquiry");
+  const duplicateCandidates = useMemo(() => {
+    const draftTitle = title.trim();
+    const draftBody = inquiryBody.trim();
+
+    if (draftTitle.length < 4 && draftBody.length < 20) {
+      return [];
+    }
+
+    return buildSimilarInquiryCandidates(
+      {
+        id: "draft",
+        title: draftTitle,
+        customerName: customerName.trim() || "入力中の顧客",
+        inquiryBody: draftBody,
+        category: null,
+        priority: null,
+        summary: null,
+        draftReply: null,
+        status: "OPEN",
+        updatedAt: new Date().toISOString(),
+        tags: [],
+      },
+      existingInquiries.map((item) => ({
+        ...item,
+        tags: item.tags,
+      }))
+    );
+  }, [customerName, existingInquiries, inquiryBody, title]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -99,6 +138,11 @@ export default function InquiryForm() {
       return;
     }
 
+    if (!canCreateInquiry) {
+      setError(`現在の権限（${roleLabel}）では問い合わせを登録できません。`);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -152,6 +196,7 @@ export default function InquiryForm() {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          disabled={!canCreateInquiry}
           placeholder="例：装置画面がフリーズして操作できない"
           className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-500"
           required
@@ -165,6 +210,7 @@ export default function InquiryForm() {
         <input
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
+          disabled={!canCreateInquiry}
           placeholder="例：株式会社サンプル"
           className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-500"
           required
@@ -178,12 +224,53 @@ export default function InquiryForm() {
         <textarea
           value={inquiryBody}
           onChange={(e) => setInquiryBody(e.target.value)}
+          disabled={!canCreateInquiry}
           placeholder="問い合わせ内容を入力してください"
           rows={10}
           className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-500"
           required
         />
       </div>
+
+      {duplicateCandidates.length > 0 ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">
+                似た問い合わせが見つかりました
+              </p>
+              <p className="mt-1 text-sm text-amber-700">
+                重複登録を避けるため、先に既存案件を確認するのがおすすめです。
+              </p>
+            </div>
+            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
+              {duplicateCandidates.length} 件
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {duplicateCandidates.map((candidate) => (
+              <Link
+                key={candidate.id}
+                href={`/inquiries/${candidate.id}`}
+                className="block rounded-2xl border border-amber-200 bg-white p-4 transition hover:border-amber-300 hover:bg-amber-50/50"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    {getStatusLabel(candidate.status)}
+                  </span>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                    一致度 {candidate.score} 点
+                  </span>
+                </div>
+                <p className="mt-3 text-sm font-bold text-slate-900">{candidate.title}</p>
+                <p className="mt-1 text-sm text-slate-500">{candidate.customerName}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{candidate.reason}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
@@ -198,7 +285,7 @@ export default function InquiryForm() {
 
         <button
           type="submit"
-          disabled={loading || isDemoMode}
+          disabled={loading || isDemoMode || !canCreateInquiry}
           className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
         >
           {isDemoMode ? "デモモードでは登録停止中" : loading ? "登録中..." : "問い合わせを登録"}

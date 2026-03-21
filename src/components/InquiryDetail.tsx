@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRole } from "@/components/RoleProvider";
 import type { Inquiry } from "@/types/inquiry";
 import AiResultPanel from "./AiResultPanel";
+import InquiryAttachmentPanel from "./InquiryAttachmentPanel";
 import InternalNotePanel from "./InternalNotePanel";
 import InquiryHistoryTimeline from "@/lib/InquiryHistoryTimeline";
 import {
+  getApprovalStatusBadgeClass,
+  getApprovalStatusLabel,
   getCategoryBadgeClass,
   getCategoryLabel,
   getPriorityBadgeClass,
@@ -71,12 +75,15 @@ function SectionHeader({
 
 export default function InquiryDetail({ inquiry }: Props) {
   const router = useRouter();
+  const { can, roleLabel } = useRole();
   const [analyzing, setAnalyzing] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [assigneeName, setAssigneeName] = useState(inquiry.assigneeName ?? "");
   const [tagsText, setTagsText] = useState((inquiry.tags ?? []).join(", "));
+  const [approvalComment, setApprovalComment] = useState(inquiry.approvalComment ?? "");
   const [assigneeSaving, setAssigneeSaving] = useState(false);
   const [tagsSaving, setTagsSaving] = useState(false);
+  const [approvalUpdating, setApprovalUpdating] = useState(false);
   const [error, setError] = useState("");
   const slaMeta = useMemo(
     () =>
@@ -96,10 +103,24 @@ export default function InquiryDetail({ inquiry }: Props) {
         inquiry.aiReason
     );
   }, [inquiry]);
+  const actorName = assigneeName.trim() || inquiry.assigneeName || "担当者";
+  const canEditInquiry = can("editInquiry");
+  const canApprove = can("approveAiReply");
+
+  useEffect(() => {
+    setAssigneeName(inquiry.assigneeName ?? "");
+    setTagsText((inquiry.tags ?? []).join(", "));
+    setApprovalComment(inquiry.approvalComment ?? "");
+  }, [inquiry.approvalComment, inquiry.assigneeName, inquiry.tags]);
 
   async function handleAnalyze() {
     if (isDemoMode) {
       setError("デモモードではAI解析を停止しています。ローカル環境でお試しください。");
+      return;
+    }
+
+    if (!canEditInquiry) {
+      setError(`現在の権限（${roleLabel}）ではAI解析を実行できません。`);
       return;
     }
 
@@ -146,6 +167,11 @@ export default function InquiryDetail({ inquiry }: Props) {
       return;
     }
 
+    if (!canEditInquiry) {
+      setError(`現在の権限（${roleLabel}）ではステータス更新できません。`);
+      return;
+    }
+
     setStatusUpdating(true);
     setError("");
 
@@ -157,7 +183,7 @@ export default function InquiryDetail({ inquiry }: Props) {
         },
         body: JSON.stringify({
           status,
-          actorName: assigneeName.trim() || inquiry.assigneeName || "担当者",
+          actorName,
         }),
       });
 
@@ -178,6 +204,11 @@ export default function InquiryDetail({ inquiry }: Props) {
   async function handleAssigneeSave() {
     if (isDemoMode) {
       setError("デモモードでは担当者更新を停止しています。");
+      return;
+    }
+
+    if (!canEditInquiry) {
+      setError(`現在の権限（${roleLabel}）では担当者更新できません。`);
       return;
     }
 
@@ -217,6 +248,11 @@ export default function InquiryDetail({ inquiry }: Props) {
       return;
     }
 
+    if (!canEditInquiry) {
+      setError(`現在の権限（${roleLabel}）ではタグ更新できません。`);
+      return;
+    }
+
     setTagsSaving(true);
     setError("");
 
@@ -237,7 +273,7 @@ export default function InquiryDetail({ inquiry }: Props) {
         },
         body: JSON.stringify({
           tags,
-          actorName: assigneeName.trim() || inquiry.assigneeName || "担当者",
+          actorName,
         }),
       });
 
@@ -252,6 +288,65 @@ export default function InquiryDetail({ inquiry }: Props) {
       setError(err instanceof Error ? err.message : "タグの更新に失敗しました。");
     } finally {
       setTagsSaving(false);
+    }
+  }
+
+  async function handleApprovalAction(
+    approvalStatus: Inquiry["approvalStatus"],
+    nextComment?: string | null
+  ) {
+    if (isDemoMode) {
+      setError("デモモードでは承認フローの更新を停止しています。");
+      return;
+    }
+
+    if (
+      (approvalStatus === "APPROVED" || approvalStatus === "CHANGES_REQUESTED") &&
+      !canApprove
+    ) {
+      setError(`現在の権限（${roleLabel}）では承認・差し戻しできません。`);
+      return;
+    }
+
+    if (approvalStatus === "PENDING" && !canEditInquiry) {
+      setError(`現在の権限（${roleLabel}）では承認依頼できません。`);
+      return;
+    }
+
+    if (!inquiry.draftReply?.trim() && approvalStatus === "PENDING") {
+      setError("承認依頼の前に、回答案を保存してください。");
+      return;
+    }
+
+    setApprovalUpdating(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/inquiries/${inquiry.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          approvalStatus,
+          approvalComment: nextComment ?? null,
+          actorName,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "承認状態の更新に失敗しました。");
+      }
+
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "承認状態の更新に失敗しました。"
+      );
+    } finally {
+      setApprovalUpdating(false);
     }
   }
 
@@ -286,6 +381,14 @@ export default function InquiryDetail({ inquiry }: Props) {
                   )}`}
                 >
                   優先度: {getPriorityLabel(inquiry.priority)}
+                </span>
+
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getApprovalStatusBadgeClass(
+                    inquiry.approvalStatus
+                  )}`}
+                >
+                  承認: {getApprovalStatusLabel(inquiry.approvalStatus)}
                 </span>
 
                 <span
@@ -488,6 +591,22 @@ export default function InquiryDetail({ inquiry }: Props) {
                 優先度に応じた対応期限を自動計算し、遅延を見逃しにくくしています。
               </p>
             </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <p className={infoCardTitleClass()}>承認フロー</p>
+              <p className="mt-3">
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${getApprovalStatusBadgeClass(
+                    inquiry.approvalStatus
+                  )}`}
+                >
+                  {getApprovalStatusLabel(inquiry.approvalStatus)}
+                </span>
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                AI回答案は、承認依頼してから承認・差し戻しできるようにしています。
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-5 md:p-6">
@@ -521,7 +640,7 @@ export default function InquiryDetail({ inquiry }: Props) {
                   <input
                     value={assigneeName}
                     onChange={(e) => setAssigneeName(e.target.value)}
-                    disabled={isDemoMode}
+                    disabled={isDemoMode || !canEditInquiry}
                     placeholder="例: 佐藤"
                     className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                   />
@@ -533,7 +652,7 @@ export default function InquiryDetail({ inquiry }: Props) {
                 <button
                   type="button"
                   onClick={handleAssigneeSave}
-                  disabled={assigneeSaving || isDemoMode}
+                  disabled={assigneeSaving || isDemoMode || !canEditInquiry}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isDemoMode ? "デモモードでは保存停止中" : assigneeSaving ? "保存中..." : "担当者を保存"}
@@ -550,7 +669,7 @@ export default function InquiryDetail({ inquiry }: Props) {
                   <input
                     value={tagsText}
                     onChange={(e) => setTagsText(e.target.value)}
-                    disabled={isDemoMode}
+                    disabled={isDemoMode || !canEditInquiry}
                     placeholder="例: 請求, 返金確認, 高優先"
                     className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                   />
@@ -562,7 +681,7 @@ export default function InquiryDetail({ inquiry }: Props) {
                 <button
                   type="button"
                   onClick={handleTagsSave}
-                  disabled={tagsSaving || isDemoMode}
+                  disabled={tagsSaving || isDemoMode || !canEditInquiry}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isDemoMode ? "デモモードでは保存停止中" : tagsSaving ? "保存中..." : "タグを保存"}
@@ -602,7 +721,7 @@ export default function InquiryDetail({ inquiry }: Props) {
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
                   onClick={handleAnalyze}
-                  disabled={analyzing || isDemoMode}
+                  disabled={analyzing || isDemoMode || !canEditInquiry}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isDemoMode ? "デモモードではAI解析停止中" : analyzing ? "AI解析中..." : "AIで解析する"}
@@ -610,7 +729,7 @@ export default function InquiryDetail({ inquiry }: Props) {
 
                 <button
                   onClick={() => updateStatus("COMPLETED")}
-                  disabled={statusUpdating || isDemoMode}
+                  disabled={statusUpdating || isDemoMode || !canEditInquiry}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isDemoMode ? "デモモードでは更新停止中" : statusUpdating ? "更新中..." : "完了にする"}
@@ -618,7 +737,7 @@ export default function InquiryDetail({ inquiry }: Props) {
 
                 <button
                   onClick={() => updateStatus("OPEN")}
-                  disabled={statusUpdating || isDemoMode}
+                  disabled={statusUpdating || isDemoMode || !canEditInquiry}
                   className="inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isDemoMode ? "デモモードでは更新停止中" : statusUpdating ? "更新中..." : "未対応に戻す"}
@@ -632,6 +751,112 @@ export default function InquiryDetail({ inquiry }: Props) {
                 </div>
               ) : null}
             </div>
+
+            <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 md:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">承認フロー</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    AI回答案を承認待ちにして、承認または差し戻しを記録できます。
+                  </p>
+                </div>
+
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getApprovalStatusBadgeClass(
+                    inquiry.approvalStatus
+                  )}`}
+                >
+                  現在の承認状態: {getApprovalStatusLabel(inquiry.approvalStatus)}
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <label className="text-sm font-semibold text-slate-800">
+                    承認コメント
+                  </label>
+                  <textarea
+                    value={approvalComment}
+                    onChange={(e) => setApprovalComment(e.target.value)}
+                    disabled={isDemoMode || (!canEditInquiry && !canApprove)}
+                    rows={4}
+                    placeholder="差し戻し理由や承認時のメモを入力"
+                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    差し戻し時は、どこを直してほしいかを残しておくと運用しやすくなります。
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleApprovalAction("PENDING", approvalComment.trim() || null)
+                      }
+                      disabled={approvalUpdating || isDemoMode || !hasAiResult || !canEditInquiry}
+                      className="inline-flex min-w-[150px] items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {approvalUpdating ? "更新中..." : "承認依頼する"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleApprovalAction("APPROVED", approvalComment.trim() || null)
+                      }
+                      disabled={approvalUpdating || isDemoMode || !canApprove}
+                      className="inline-flex min-w-[150px] items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {approvalUpdating ? "更新中..." : "承認する"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleApprovalAction(
+                          "CHANGES_REQUESTED",
+                          approvalComment.trim() || "修正内容を確認してください。"
+                        )
+                      }
+                      disabled={approvalUpdating || isDemoMode || !canApprove}
+                      className="inline-flex min-w-[150px] items-center justify-center rounded-2xl border border-rose-300 bg-white px-5 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {approvalUpdating ? "更新中..." : "差し戻す"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className={infoCardTitleClass()}>承認状況の記録</p>
+                  <dl className="mt-4 space-y-3 text-sm text-slate-600">
+                    <div>
+                      <dt className="font-semibold text-slate-800">承認依頼日時</dt>
+                      <dd className="mt-1">
+                        {inquiry.approvalRequestedAt
+                          ? formatDate(inquiry.approvalRequestedAt)
+                          : "まだ依頼していません"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold text-slate-800">承認日時</dt>
+                      <dd className="mt-1">
+                        {inquiry.approvedAt
+                          ? formatDate(inquiry.approvedAt)
+                          : "まだ承認されていません"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold text-slate-800">承認者</dt>
+                      <dd className="mt-1">{inquiry.approvedBy ?? "未設定"}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold text-slate-800">最新コメント</dt>
+                      <dd className="mt-1 whitespace-pre-wrap leading-6">
+                        {inquiry.approvalComment ?? "コメントはありません"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -640,6 +865,12 @@ export default function InquiryDetail({ inquiry }: Props) {
         inquiry={inquiry}
         actorName={assigneeName || inquiry.assigneeName}
         onSaved={() => router.refresh()}
+      />
+
+      <InquiryAttachmentPanel
+        inquiryId={inquiry.id}
+        attachments={inquiry.attachments ?? []}
+        uploadedBy={actorName}
       />
 
       <InternalNotePanel inquiryId={inquiry.id} />

@@ -92,7 +92,11 @@ export default async function InquiriesPage({ searchParams }: PageProps) {
 
   const serialized: Inquiry[] = inquiries.map(({ _count, tags, ...item }) => ({
     ...item,
+    approvalRequestedAt: item.approvalRequestedAt?.toISOString() ?? null,
+    approvedAt: item.approvedAt?.toISOString() ?? null,
     slaDueAt: item.slaDueAt?.toISOString() ?? null,
+    approvalComment: item.approvalComment ?? null,
+    approvedBy: item.approvedBy ?? null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     commentCount: _count.comments,

@@ -8,6 +8,7 @@ import {
   getAuditActionLabel,
 } from "@/lib/auditLogs";
 import {
+  getApprovalStatusLabel,
   getCategoryLabel,
   getPriorityLabel,
   getStatusLabel,
@@ -48,6 +49,16 @@ function getDisplayValue(fieldName: string | null, value: string | null) {
       return getPriorityLabel(value as Inquiry["priority"]);
     case "category":
       return getCategoryLabel(value as Inquiry["category"]);
+    case "approvalStatus":
+      return getApprovalStatusLabel(value as Inquiry["approvalStatus"]);
+    case "aiEvaluation":
+      return value === "ACCEPTED"
+        ? "そのまま採用"
+        : value === "EDITED"
+          ? "修正して利用"
+          : value === "REJECTED"
+            ? "採用しない"
+            : value;
     case "slaDueAt":
       return formatDate(value);
     default:
@@ -83,6 +94,16 @@ function getFieldLabel(fieldName: string | null) {
       return "問い合わせ本文";
     case "slaDueAt":
       return "SLA期限";
+    case "approvalStatus":
+      return "承認状態";
+    case "approvalComment":
+      return "承認コメント";
+    case "approvedBy":
+      return "承認者";
+    case "aiEvaluation":
+      return "AI評価";
+    case "attachment":
+      return "添付ファイル";
     default:
       return "更新項目";
   }

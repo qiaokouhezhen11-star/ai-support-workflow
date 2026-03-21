@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRole } from "@/components/RoleProvider";
 import type { InquiryComment } from "@/types/inquiry";
 
 type Props = {
@@ -32,6 +33,7 @@ function NoteCard({
   editingBody,
   saving,
   deleting,
+  canEdit,
   onEditStart,
   onEditCancel,
   onEditSubmit,
@@ -45,6 +47,7 @@ function NoteCard({
   editingBody: string;
   saving: boolean;
   deleting: boolean;
+  canEdit: boolean;
   onEditStart: (comment: InquiryComment) => void;
   onEditCancel: () => void;
   onEditSubmit: (commentId: string) => void;
@@ -124,7 +127,7 @@ function NoteCard({
                 <button
                   type="button"
                   onClick={() => onEditStart(comment)}
-                  disabled={isDemoMode}
+                  disabled={isDemoMode || !canEdit}
                   className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
                 >
                   編集
@@ -132,7 +135,7 @@ function NoteCard({
                 <button
                   type="button"
                   onClick={() => onDelete(comment.id)}
-                  disabled={deleting || isDemoMode}
+                  disabled={deleting || isDemoMode || !canEdit}
                   className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {deleting ? "削除中..." : "削除"}
@@ -161,6 +164,7 @@ async function parseApiResponse(res: Response) {
 
 export default function InternalNotePanel({ inquiryId }: Props) {
   const router = useRouter();
+  const { can, roleLabel } = useRole();
   const [comments, setComments] = useState<InquiryComment[]>([]);
   const [authorName, setAuthorName] = useState("担当者");
   const [body, setBody] = useState("");
@@ -173,6 +177,7 @@ export default function InternalNotePanel({ inquiryId }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "">("");
+  const canEditInquiry = can("editInquiry");
 
   const fetchComments = useCallback(async () => {
     setLoading(true);
@@ -208,6 +213,12 @@ export default function InternalNotePanel({ inquiryId }: Props) {
 
     if (isDemoMode) {
       setMessage("デモモードでは社内メモの追加を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
+    if (!canEditInquiry) {
+      setMessage(`現在の権限（${roleLabel}）では社内メモを追加できません。`);
       setMessageType("error");
       return;
     }
@@ -270,6 +281,12 @@ export default function InternalNotePanel({ inquiryId }: Props) {
       return;
     }
 
+    if (!canEditInquiry) {
+      setMessage(`現在の権限（${roleLabel}）では社内メモを更新できません。`);
+      setMessageType("error");
+      return;
+    }
+
     setSavingId(commentId);
     setMessage("");
     setMessageType("");
@@ -310,6 +327,12 @@ export default function InternalNotePanel({ inquiryId }: Props) {
   async function handleDelete(commentId: string) {
     if (isDemoMode) {
       setMessage("デモモードでは社内メモの削除を停止しています。");
+      setMessageType("error");
+      return;
+    }
+
+    if (!canEditInquiry) {
+      setMessage(`現在の権限（${roleLabel}）では社内メモを削除できません。`);
       setMessageType("error");
       return;
     }
@@ -395,7 +418,7 @@ export default function InternalNotePanel({ inquiryId }: Props) {
                 type="text"
                 value={authorName}
                 onChange={(e) => setAuthorName(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canEditInquiry}
                 placeholder="例: 山田"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
               />
@@ -409,7 +432,7 @@ export default function InternalNotePanel({ inquiryId }: Props) {
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                disabled={isDemoMode}
+                disabled={isDemoMode || !canEditInquiry}
                 rows={5}
                 placeholder="例: 返金判断の可能性あり。利用状況を確認してから一次回答する。"
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -449,7 +472,7 @@ export default function InternalNotePanel({ inquiryId }: Props) {
 
             <button
               type="submit"
-              disabled={posting || isDemoMode}
+              disabled={posting || isDemoMode || !canEditInquiry}
               className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isDemoMode ? "デモモードでは追加停止中" : posting ? "保存中..." : "社内メモを追加"}
@@ -475,6 +498,7 @@ export default function InternalNotePanel({ inquiryId }: Props) {
                   editingBody={editingBody}
                   saving={savingId === comment.id}
                   deleting={deletingId === comment.id}
+                  canEdit={canEditInquiry}
                   onEditStart={handleEditStart}
                   onEditCancel={handleEditCancel}
                   onEditSubmit={handleEditSubmit}
