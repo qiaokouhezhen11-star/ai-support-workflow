@@ -46,6 +46,12 @@ export default async function InquiryDetailPage({ params }: Props) {
     },
     take: 20,
   });
+  const replyTemplates = await prisma.replyTemplate.findMany({
+    orderBy: {
+      updatedAt: "desc",
+    },
+    take: 12,
+  });
 
   if (!inquiry) {
     notFound();
@@ -87,6 +93,7 @@ export default async function InquiryDetailPage({ params }: Props) {
 
   const serialized: Inquiry = {
     ...item,
+    slaDueAt: item.slaDueAt?.toISOString() ?? null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     auditLogs: auditLogs.map((log) => ({
@@ -101,6 +108,11 @@ export default async function InquiryDetailPage({ params }: Props) {
       ...article,
       createdAt: article.createdAt.toISOString(),
       updatedAt: article.updatedAt.toISOString(),
+    })),
+    replyTemplates: replyTemplates.map((template) => ({
+      ...template,
+      createdAt: template.createdAt.toISOString(),
+      updatedAt: template.updatedAt.toISOString(),
     })),
   };
 

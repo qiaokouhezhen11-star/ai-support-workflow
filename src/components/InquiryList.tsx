@@ -8,6 +8,7 @@ import {
   getStatusBadgeClass,
   getStatusLabel,
 } from "@/lib/inquiryLabels";
+import { formatSlaDate, getSlaMeta } from "@/lib/sla";
 
 type Props = {
   inquiries: Inquiry[];
@@ -24,12 +25,18 @@ export default function InquiryList({ inquiries }: Props) {
 
   return (
     <div className="space-y-4">
-      {inquiries.map((inquiry) => (
-        <Link
-          key={inquiry.id}
-          href={`/inquiries/${inquiry.id}`}
-          className="block overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-        >
+      {inquiries.map((inquiry) => {
+        const sla = getSlaMeta({
+          slaDueAt: inquiry.slaDueAt,
+          status: inquiry.status,
+        });
+
+        return (
+          <Link
+            key={inquiry.id}
+            href={`/inquiries/${inquiry.id}`}
+            className="block overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+          >
           <div className="border-b border-slate-100 bg-gradient-to-r from-white via-slate-50 to-blue-50/60 px-5 py-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
@@ -54,6 +61,11 @@ export default function InquiryList({ inquiries }: Props) {
                     )}`}
                   >
                     {getCategoryLabel(inquiry.category)}
+                  </span>
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${sla.toneClass}`}
+                  >
+                    {sla.label}
                   </span>
                 </div>
 
@@ -118,6 +130,16 @@ export default function InquiryList({ inquiries }: Props) {
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    SLA Due
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {formatSlaDate(inquiry.slaDueAt)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">{sla.detail}</p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Inquiry ID
                   </p>
                   <p className="mt-1 truncate font-mono text-xs text-slate-700">
@@ -127,8 +149,9 @@ export default function InquiryList({ inquiries }: Props) {
               </div>
             </div>
           </div>
-        </Link>
-      ))}
+          </Link>
+        );
+      })}
     </div>
   );
 }

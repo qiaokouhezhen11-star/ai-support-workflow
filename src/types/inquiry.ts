@@ -76,6 +76,18 @@ export type KnowledgeArticle = {
   updatedAt: string;
 };
 
+export type ReplyTemplate = {
+  id: string;
+  title: string;
+  description: string;
+  body: string;
+  category: InquiryCategory | null;
+  priority: InquiryPriority | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Inquiry = {
   id: string;
   title: string;
@@ -88,6 +100,7 @@ export type Inquiry = {
   draftReply: string | null;
   aiReason: string | null;
   status: InquiryStatus;
+  slaDueAt: string | null;
   createdAt: string;
   updatedAt: string;
   auditLogs?: InquiryAuditLog[];
@@ -96,4 +109,5 @@ export type Inquiry = {
   similarInquiries?: SimilarInquiryCandidate[];
   knowledgeSuggestions?: KnowledgeSuggestion[];
   knowledgeArticles?: KnowledgeArticle[];
+  replyTemplates?: ReplyTemplate[];
 };

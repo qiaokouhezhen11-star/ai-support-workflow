@@ -15,6 +15,7 @@ import {
   getStatusBadgeClass,
   getStatusLabel,
 } from "@/lib/inquiryLabels";
+import { formatSlaDate, getSlaMeta } from "@/lib/sla";
 
 type Props = {
   inquiry: Inquiry;
@@ -77,6 +78,14 @@ export default function InquiryDetail({ inquiry }: Props) {
   const [assigneeSaving, setAssigneeSaving] = useState(false);
   const [tagsSaving, setTagsSaving] = useState(false);
   const [error, setError] = useState("");
+  const slaMeta = useMemo(
+    () =>
+      getSlaMeta({
+        slaDueAt: inquiry.slaDueAt,
+        status: inquiry.status,
+      }),
+    [inquiry.slaDueAt, inquiry.status]
+  );
 
   const hasAiResult = useMemo(() => {
     return Boolean(
@@ -332,11 +341,53 @@ export default function InquiryDetail({ inquiry }: Props) {
                   {formatDate(inquiry.updatedAt)}
                 </p>
               </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 sm:col-span-2">
+                <p className={infoCardTitleClass()}>SLA期限</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {formatSlaDate(inquiry.slaDueAt)}
+                  </p>
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${slaMeta.toneClass}`}
+                  >
+                    {slaMeta.label}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-slate-500">{slaMeta.detail}</p>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="px-6 py-6 md:px-8">
+          {slaMeta.isOverdue || slaMeta.isDueSoon ? (
+            <div
+              className={`mb-6 rounded-3xl border px-5 py-4 ${
+                slaMeta.isOverdue
+                  ? "border-red-200 bg-red-50"
+                  : "border-amber-200 bg-amber-50"
+              }`}
+            >
+              <p
+                className={`text-sm font-semibold ${
+                  slaMeta.isOverdue ? "text-red-700" : "text-amber-700"
+                }`}
+              >
+                {slaMeta.isOverdue
+                  ? "SLA期限を超過しています。優先して一次対応を確認してください。"
+                  : "SLA期限が近づいています。遅延前に対応状況を確認してください。"}
+              </p>
+              <p
+                className={`mt-1 text-sm ${
+                  slaMeta.isOverdue ? "text-red-600" : "text-amber-700"
+                }`}
+              >
+                {slaMeta.detail}
+              </p>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-3">
             {inquiry.category ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -425,6 +476,16 @@ export default function InquiryDetail({ inquiry }: Props) {
               </p>
               <p className="mt-2 text-sm leading-6 text-slate-500">
                 担当者間の引き継ぎや注意点を記録できます。
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <p className={infoCardTitleClass()}>SLA監視</p>
+              <p className="mt-3 text-base font-bold text-slate-900">
+                {slaMeta.label}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                優先度に応じた対応期限を自動計算し、遅延を見逃しにくくしています。
               </p>
             </div>
           </div>

@@ -48,6 +48,8 @@ function getDisplayValue(fieldName: string | null, value: string | null) {
       return getPriorityLabel(value as Inquiry["priority"]);
     case "category":
       return getCategoryLabel(value as Inquiry["category"]);
+    case "slaDueAt":
+      return formatDate(value);
     default:
       return value;
   }
@@ -79,6 +81,8 @@ function getFieldLabel(fieldName: string | null) {
       return "顧客名";
     case "inquiryBody":
       return "問い合わせ本文";
+    case "slaDueAt":
+      return "SLA期限";
     default:
       return "更新項目";
   }

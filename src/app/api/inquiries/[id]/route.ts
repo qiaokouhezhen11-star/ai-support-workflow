@@ -5,6 +5,7 @@ import {
   isReadOnlyDeployment,
 } from "@/lib/deployMode";
 import { prisma } from "@/lib/prisma";
+import { calculateSlaDueAt } from "@/lib/sla";
 
 const updateInquirySchema = z.object({
   title: z.string().trim().min(1).optional(),
@@ -155,6 +156,30 @@ export async function PATCH(req: Request, { params }: Props) {
         return acc;
       }, []);
 
+    const hasPriorityUpdate = "priority" in data;
+    const computedSlaDueAt = hasPriorityUpdate
+      ? calculateSlaDueAt(data.priority ?? null, current.createdAt)
+      : undefined;
+
+    if (hasPriorityUpdate) {
+      const beforeValue = stringifyValue(current.slaDueAt?.toISOString());
+      const afterValue = stringifyValue(computedSlaDueAt?.toISOString());
+
+      if (beforeValue !== afterValue) {
+        logs.push({
+          inquiryId: id,
+          action: "FIELD_UPDATED",
+          actorName: actorName || current.assigneeName || "担当者",
+          fieldName: "slaDueAt",
+          beforeValue,
+          afterValue,
+          comment: computedSlaDueAt
+            ? "優先度に応じてSLA期限を更新しました。"
+            : "SLA期限を解除しました。",
+        });
+      }
+    }
+
     const nextTags = tags
       ? Array.from(
           new Set(
@@ -187,7 +212,10 @@ export async function PATCH(req: Request, { params }: Props) {
     const inquiry = await prisma.$transaction(async (tx) => {
       const updated = await tx.inquiry.update({
         where: { id },
-        data,
+        data: {
+          ...data,
+          ...(hasPriorityUpdate ? { slaDueAt: computedSlaDueAt ?? null } : {}),
+        },
       });
 
       if (nextTags) {

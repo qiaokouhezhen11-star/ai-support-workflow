@@ -1,7 +1,14 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 
+function addHours(hours: number) {
+  const date = new Date();
+  date.setHours(date.getHours() + hours);
+  return date;
+}
+
 async function main() {
+  await prisma.replyTemplate.deleteMany();
   await prisma.knowledgeArticle.deleteMany();
   await prisma.inquiryTag.deleteMany();
   await prisma.inquiryAuditLog.deleteMany();
@@ -25,6 +32,7 @@ async function main() {
         "請求・支払いに関する内容であり、金銭に関わるため優先度は高と判断。",
       status: "REVIEW_NEEDED",
       assigneeName: "佐藤",
+      slaDueAt: addHours(-6),
     },
   });
 
@@ -45,6 +53,7 @@ async function main() {
         "サービス利用自体に影響する不具合であり、複数ブラウザで再現しているため緊急度は高いと判断。",
       status: "AI_DRAFTED",
       assigneeName: "開発担当",
+      slaDueAt: addHours(-1),
     },
   });
 
@@ -75,6 +84,7 @@ async function main() {
       aiReason: "請求内容の不一致に関する問い合わせであり、金額確認が必要なため優先度は高と判断。",
       status: "REVIEW_NEEDED",
       assigneeName: "佐藤",
+      slaDueAt: addHours(3),
     },
   });
 
@@ -95,6 +105,7 @@ async function main() {
         "ログイン後の主要画面が利用できず複数ユーザーへ影響しているため、緊急度は高いと判断。",
       status: "AI_DRAFTED",
       assigneeName: "開発担当",
+      slaDueAt: addHours(1),
     },
   });
 
@@ -266,6 +277,38 @@ async function main() {
         tagsText: "機能要望, CSV",
         keywordsText: "レポート, 出力, 要件整理",
         createdBy: "PM",
+      },
+    ],
+  });
+
+  await prisma.replyTemplate.createMany({
+    data: [
+      {
+        title: "請求確認中の一次返信",
+        description: "請求差異や二重請求の確認を始めたことを伝える定型文です。",
+        body:
+          "お問い合わせありがとうございます。ご請求内容について確認を開始しております。対象月の請求明細と決済履歴を確認のうえ、判明次第あらためてご案内いたします。",
+        category: "BILLING",
+        priority: "HIGH",
+        createdBy: "佐藤",
+      },
+      {
+        title: "障害調査中の一次返信",
+        description: "ログイン障害や画面表示不具合で、調査中であることを伝える定型文です。",
+        body:
+          "お問い合わせありがとうございます。現在、事象の再現確認と原因調査を進めております。ご不便をおかけして申し訳ありません。進捗があり次第、優先してご連絡いたします。",
+        category: "TROUBLESHOOTING",
+        priority: "URGENT",
+        createdBy: "開発担当",
+      },
+      {
+        title: "機能要望の受付返信",
+        description: "機能要望を受け付け、社内検討へ回すときの定型文です。",
+        body:
+          "ご要望をお寄せいただきありがとうございます。いただいた内容は社内で検討し、今後の改善候補として共有いたします。進展がありましたら、あらためてご案内いたします。",
+        category: "FEATURE_REQUEST",
+        priority: "MEDIUM",
+        createdBy: "担当者",
       },
     ],
   });

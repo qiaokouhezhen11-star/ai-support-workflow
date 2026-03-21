@@ -1,9 +1,11 @@
 import Link from "next/link";
 import DashboardCharts from "@/components/DashboardCharts";
 import KnowledgeLibraryPanel from "@/components/KnowledgeLibraryPanel";
+import ReplyTemplateLibraryPanel from "@/components/ReplyTemplateLibraryPanel";
 import { prisma } from "@/lib/prisma";
 import { getStatusLabel } from "@/lib/inquiryLabels";
 import { getAuditActionLabel } from "@/lib/auditLogs";
+import { getSlaMeta } from "@/lib/sla";
 
 function percent(value: number, total: number) {
   if (total === 0) {
@@ -56,6 +58,7 @@ export default async function DashboardPage() {
     inquiries,
     recentLogs,
     knowledgeArticles,
+    replyTemplates,
   ] = await Promise.all([
     prisma.inquiry.count(),
     prisma.inquiry.count({ where: { status: "OPEN" } }),
@@ -105,6 +108,12 @@ export default async function DashboardPage() {
       },
     }),
     prisma.knowledgeArticle.findMany({
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 6,
+    }),
+    prisma.replyTemplate.findMany({
       orderBy: {
         updatedAt: "desc",
       },
@@ -194,6 +203,18 @@ export default async function DashboardPage() {
   const completionRate = percent(completedCount, total);
   const assignmentRate = percent(assignedCount, total);
   const avgComments = total === 0 ? 0 : Math.round((commentCount / total) * 10) / 10;
+  const overdueCount = inquiries.filter((item) =>
+    getSlaMeta({
+      slaDueAt: item.slaDueAt?.toISOString() ?? null,
+      status: item.status,
+    }).isOverdue
+  ).length;
+  const dueSoonCount = inquiries.filter((item) =>
+    getSlaMeta({
+      slaDueAt: item.slaDueAt?.toISOString() ?? null,
+      status: item.status,
+    }).isDueSoon
+  ).length;
   const assigneeProcessingTime = Object.entries(
     inquiries.reduce<Record<string, { totalHours: number; count: number }>>((acc, inquiry) => {
       const completedAt = inquiry.auditLogs[0]?.createdAt;
@@ -279,10 +300,10 @@ export default async function DashboardPage() {
               className: "from-red-50 to-white",
             },
             {
-              label: "社内メモ",
-              value: `${commentCount}件`,
-              note: "蓄積されたメモ件数",
-              subValue: `平均 ${avgComments}件 / 問い合わせ`,
+              label: "SLA注意件数",
+              value: `${overdueCount + dueSoonCount}件`,
+              note: "遅延中または期限が近い件数",
+              subValue: `遅延 ${overdueCount}件 / 期限接近 ${dueSoonCount}件`,
               className: "from-amber-50 to-white",
             },
           ].map((item) => (
@@ -437,6 +458,54 @@ export default async function DashboardPage() {
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">SLAアラート</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              期限超過と、まもなく期限を迎える問い合わせをまとめて確認できます。
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+                <p className="text-sm font-semibold text-red-700">期限超過</p>
+                <p className="mt-3 text-4xl font-bold tracking-tight text-red-950">
+                  {overdueCount}
+                </p>
+                <p className="mt-2 text-sm text-red-700">
+                  すぐ確認したい遅延案件です。
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <p className="text-sm font-semibold text-amber-700">まもなく期限</p>
+                <p className="mt-3 text-4xl font-bold tracking-tight text-amber-950">
+                  {dueSoonCount}
+                </p>
+                <p className="mt-2 text-sm text-amber-700">
+                  遅延前にフォローしたい案件です。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">社内メモの活用状況</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              引き継ぎに使われるメモの量をざっくり把握できます。
+            </p>
+
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-700">社内メモ総数</p>
+              <p className="mt-3 text-4xl font-bold tracking-tight text-slate-900">
+                {commentCount}件
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                平均 {avgComments}件 / 問い合わせ
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900">最近の更新</h2>
             <p className="mt-1 text-sm text-slate-500">
               直近の監査ログをダッシュボードから確認できます。
@@ -512,6 +581,14 @@ export default async function DashboardPage() {
             ...article,
             createdAt: article.createdAt.toISOString(),
             updatedAt: article.updatedAt.toISOString(),
+          }))}
+        />
+
+        <ReplyTemplateLibraryPanel
+          templates={replyTemplates.map((template) => ({
+            ...template,
+            createdAt: template.createdAt.toISOString(),
+            updatedAt: template.updatedAt.toISOString(),
           }))}
         />
       </div>

@@ -92,6 +92,7 @@ export default async function InquiriesPage({ searchParams }: PageProps) {
 
   const serialized: Inquiry[] = inquiries.map(({ _count, tags, ...item }) => ({
     ...item,
+    slaDueAt: item.slaDueAt?.toISOString() ?? null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     commentCount: _count.comments,
@@ -140,7 +141,7 @@ export default async function InquiriesPage({ searchParams }: PageProps) {
               並び順: 更新が新しい順
             </span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-              検索対象: 件名 / 顧客名 / 本文
+              検索対象: 件名 / 顧客名 / 本文 / 担当者
             </span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
               担当者設定済み: {assignedCount} 件

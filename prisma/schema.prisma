@@ -44,6 +44,7 @@ model Inquiry {
   customerName String
   inquiryBody  String
   assigneeName String?
+  slaDueAt     DateTime?
 
   category     InquiryCategory?
   priority     InquiryPriority?
@@ -113,6 +114,20 @@ model KnowledgeArticle {
   createdBy    String           @default("担当者")
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+
+  @@index([category, priority, updatedAt])
+}
+
+model ReplyTemplate {
+  id         String           @id @default(cuid())
+  title      String
+  description String
+  body       String
+  category   InquiryCategory?
+  priority   InquiryPriority?
+  createdBy  String           @default("担当者")
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 
   @@index([category, priority, updatedAt])
 }
