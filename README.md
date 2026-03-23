@@ -49,7 +49,7 @@ AI分析では、問い合わせ本文をもとに次のような構造化結果
 
 ```json
 {
-  "category": "TROUBLE",
+  "category": "TROUBLESHOOTING",
   "priority": "HIGH",
   "summary": "...",
   "draftReply": "..."
